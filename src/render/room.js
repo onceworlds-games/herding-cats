@@ -770,56 +770,61 @@ function plaidTexture(color) {
     return new THREE.MeshStandardMaterial({ map: t, roughness: 0.97 });
   });
 }
-/** A braided rag rug: many narrow rings, mostly the main colour with its neighbours mixed in, each ring twisted. */
+/** A braided rag rug: narrow rings close in tone (the main colour and its shades), now and then an accent, each ring
+ * twisted; a darker edge. Tonal, so it reads as a woven mat and not a target. */
 function braidTexture(cols) {
   return mat(`braid:${cols.join()}`, () => canvasTex(256, 256, (g, w) => {
     const c = w / 2;
     let seed = hashStr(cols.join()) || 1;
     const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-    g.fillStyle = shade(cols[0], -0.25); g.fillRect(0, 0, w, w);
-    const band = 6.4;
-    let last = -1;
+    const main = cols[0];
+    const tones = [main, shade(main, 0.05), shade(main, -0.05), shade(main, 0.09)];
+    g.fillStyle = shade(main, -0.22); g.fillRect(0, 0, w, w);
+    const band = 5.2;
     for (let r = c - 1, i = 0; r > 3; r -= band, i++) {
-      // the outer two rings in the edge colour, then a weighted mix
-      let k = i < 2 ? 3 : rnd() < 0.42 ? 0 : 1 + Math.floor(rnd() * (cols.length - 1));
-      if (k === last && i >= 2) k = (k + 1) % cols.length;
-      last = k;
-      const col = cols[k];
-      g.lineWidth = band - 0.6; g.strokeStyle = col;
+      // the edge a shade darker, accents only through the middle (a plain centre, so no bullseye)
+      const accent = r > c * 0.3 && r < c * 0.85 && rnd() < 0.14;
+      const col = i < 2 ? shade(main, -0.1) : accent ? cols[1 + Math.floor(rnd() * (cols.length - 1))] : tones[Math.floor(rnd() * tones.length)];
+      g.lineWidth = band - 0.4; g.strokeStyle = col;
       g.beginPath(); g.arc(c, c, Math.max(1, r - band / 2), 0, Math.PI * 2); g.stroke();
-      g.lineWidth = 1.2; g.strokeStyle = shade(col, -0.16);
-      const n = Math.max(6, Math.round((r * Math.PI * 2) / 4.5));
-      const lean = i % 2 ? 0.06 : -0.06;
+      g.lineWidth = 1; g.strokeStyle = shade(col, -0.12);
+      const n = Math.max(6, Math.round((r * Math.PI * 2) / 3.6));
+      const lean = i % 2 ? 0.05 : -0.05;
       for (let j = 0; j < n; j++) {
         const a = (j / n) * Math.PI * 2;
-        const r0 = r - band + 1, r1 = r - 1;
+        const r0 = r - band + 0.8, r1 = r - 0.8;
         g.beginPath(); g.moveTo(c + Math.cos(a) * r0, c + Math.sin(a) * r0); g.lineTo(c + Math.cos(a + lean) * r1, c + Math.sin(a + lean) * r1); g.stroke();
       }
     }
   }));
 }
 const BRAIDS = [
-  ['#d9a23a', '#c98a2e', '#efe2c8', '#9c5a2e', '#d98b86'],
-  ['#3f8a86', '#5c9c97', '#efe2c8', '#2a5f5c', '#d9a23a'],
-  ['#d98b86', '#c46e6a', '#efe2c8', '#8a4a68', '#e9bba8'],
-  ['#7fa276', '#93b38a', '#efe2c8', '#4f7448', '#d9a23a'],
-  ['#3f5d8c', '#5b7aa8', '#efe2c8', '#2f4a70', '#d98b86'],
-  ['#efe2c8', '#d9c7a4', '#c4473b', '#8c6a4a', '#3f8a86'],
+  ['#c98f4a', '#d98b86', '#efe2c8'],
+  ['#4f8a84', '#d9a23a', '#efe2c8'],
+  ['#c98480', '#8a4a68', '#efe2c8'],
+  ['#86a07a', '#d9a23a', '#efe2c8'],
+  ['#5d7397', '#d98b86', '#efe2c8'],
+  ['#d8c7a6', '#c4473b', '#3f8a86'],
 ];
 const DECOR_GEO = {};
+const AXIS_Z = new THREE.Vector3(0, 0, 1);
 const dgeo = (k, make) => (DECOR_GEO[k] ??= make());
 function decorPiece(kind, rng) {
   const g = new THREE.Group();
   const pick = (a) => a[Math.floor(rng() * a.length)];
   if (kind === 'yarn') {
     const col = pick(['#c4473b', '#3f8a86', '#f6b941', '#8c5bc4', '#5b87c5', '#e57fa6']);
+    // the ball rolls inside `roll`; the loose strand trails behind it
+    const roll = new THREE.Group();
+    roll.position.y = 0.105;
     const b = new THREE.Mesh(dgeo('ball', () => new THREE.SphereGeometry(0.11, 14, 10)), yarnTexture(col));
-    b.position.y = 0.105;
     b.rotation.set(rng() * 3, rng() * 3, rng() * 3);
+    roll.add(b);
     const tail = new THREE.Mesh(dgeo('strand', () => new THREE.TorusGeometry(0.22, 0.008, 4, 18, Math.PI * 0.9)), std(col, 0.9));
     tail.rotation.x = -Math.PI / 2;
     tail.position.set(0.2, 0.01, 0);
-    g.add(b, tail);
+    g.add(roll, tail);
+    g.userData.roll = roll;
   } else if (kind === 'mouse') {
     const col = pick(['#9a8f86', '#d8c9b2', '#5b5452']);
     const body = new THREE.Mesh(dgeo('mouseBody', () => new THREE.SphereGeometry(0.07, 10, 8)), std(col, 0.95));
@@ -945,12 +950,14 @@ function decorPiece(kind, rng) {
     handle.position.set(-0.02, 0.27, 0);
     g.add(body, spout, handle);
   } else if (kind === 'ball') {
+    const roll = new THREE.Group();
+    roll.position.y = 0.16;
     const b = new THREE.Mesh(dgeo('bigball', () => new THREE.SphereGeometry(0.16, 16, 12)), std(pick(['#e5493a', '#5b87c5', '#f6b941']), 0.5));
-    b.position.y = 0.16;
     const band = new THREE.Mesh(dgeo('ballBand', () => new THREE.TorusGeometry(0.16, 0.02, 6, 20)), std('#fff3df', 0.5));
-    band.position.y = 0.16;
     band.rotation.set(rng() * 3, rng() * 3, 0);
-    g.add(b, band);
+    roll.add(b, band);
+    g.add(roll);
+    g.userData.roll = roll;
   }
   g.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
   return g;
@@ -1067,7 +1074,6 @@ function decorate(room, world, quality) {
   if (!toys.length) return { group, update() {}, tidy() {} };
 
   const q = new THREE.Quaternion();
-  const axis = new THREE.Vector3();
   /** movers: [{ x, z, r, sp }] this frame. */
   function update(dt, movers) {
     if (!(dt > 0)) return;
@@ -1105,14 +1111,15 @@ function decorate(room, world, quality) {
       t.vx *= f; t.vz *= f;
       t.obj.position.x = t.x;
       t.obj.position.z = t.z;
-      if (t.kind === 'mouse') {
+      const roll = t.obj.userData.roll;
+      if (roll) {
+        // face the strand behind the ball, then roll it about the axis across the motion (local -x is forward)
+        t.obj.rotation.y = Math.atan2(t.vz, -t.vx);
+        q.setFromAxisAngle(AXIS_Z, moved / t.r);
+        roll.quaternion.premultiply(q);
+      } else {
         t.obj.rotation.y += t.spin * dt;
         t.spin *= f;
-      } else {
-        // roll: turn about the axis across the motion
-        axis.set(t.vz, 0, -t.vx).normalize();
-        q.setFromAxisAngle(axis, moved / t.r);
-        t.obj.quaternion.premultiply(q);
       }
     }
   }
@@ -1121,6 +1128,7 @@ function decorate(room, world, quality) {
       t.x = t.home.x; t.z = t.home.z; t.vx = t.vz = 0;
       t.obj.position.set(t.x, 0, t.z);
       t.obj.rotation.set(0, t.home.ry, 0);
+      t.obj.userData.roll?.quaternion.identity();
     }
   }
   return { group, update, tidy };

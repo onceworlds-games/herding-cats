@@ -101,6 +101,10 @@ matters: when it acts, when you're within 7 u, or always for the Boss. Moggies h
 | **Kitten** | tiny, big head | follows the nearest grown cat within 6 u, 1 u behind it. Flees weakly (2 u). If the cat it follows goes into a carrier and it's within 4 u, it tumbles in after it 0.8 s later | none (size says it) |
 | **Boss** | big tom, notched ear, scar, studded collar | never runs (2 u/s max), turns its back on treats. A clap only makes it stalk off (2.5 u/s for 1 s). Its gang (2-3 cats with the same studded collar) follows it within 6 u in a loose V. When the Boss goes in, every gang cat walks to that carrier from anywhere (still fleeing people within 3 u, so a rival can cut them off) and goes in | a crown, always |
 
+**Coats** are rolled fresh for every cat each try: eight house coats, and now and then something rarer: Fancy (1 in 7:
+Silver Tabby, Cream, Ginger & White, Russian Blue, Cow Print, Smoke), Rare (1 in 30: Panda, Bengal, Lilac Point, Midnight)
+and Lucky Gold (1 in 150). Rare coats glint in the room; boxing one adds it to the Cat-alog with a sparkle.
+
 **Furniture:** low pieces (sofa, bed, tables, boxes) are perches. An idle cat may hop up (4% a second, 6-15 s); a perched cat
 ignores pushes and swishes its tail. Treats or a clap bring it down. Perched cats sometimes swat an object off (a vase, a
 mug, a stack of books): it falls and smashes with a crash. Nearby cats flinch; a Scaredy within 6 u hides. Debris has no
@@ -167,7 +171,8 @@ stragglers); private servers wait for the host's Start (`room.canStart`). Joinin
 (16 for 4 seats, 24 for 6). A round ends when the last cat is in or the clock runs out. Your points are the cats in your
 carrier; the match is won on total cats. People's pushes affect every cat, so stealing a herd someone lined up is the game.
 Each carrier's doormat is its owner's: other people standing on it slide off (no door camping). Persons pass through each
-other. Round 1 has moggies, a Glutton and kittens; round 2 adds Zoomers, a Loaf and a Scaredy; round 3+ adds a Boss gang.
+other. The camera follows you (your carrier leaning into frame), so 16-24 cats stay big enough to read. 45 s in, a **laser
+pointer** turns up in the middle of the room: whoever grabs it can pull a crowd to their door (55 s in Together). Round 1 has moggies, a Glutton and kittens; round 2 adds Zoomers, a Loaf and a Scaredy; round 3+ adds a Boss gang.
 Carrier spots rotate each round.
 
 **Together.** One carrier, all the cats, beat the clock. 2:30 rounds; cats = 6 + 2 per seat. Team stars per round:

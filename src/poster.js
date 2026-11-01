@@ -9,8 +9,8 @@ import { ROOMS, arena } from './sim/rooms.js';
 import { levelSetup, catladySetup } from './sim/levels.js';
 import { S, SEATS, TYPES } from './sim/tuning.js';
 import { symbolSvg, PATHS } from './ui/symbols.js';
-import { icon } from './ui/icons.js';
-import { carrierSvg, rosette, star } from './ui/ui.js';
+import { icon, challengeIcon } from './ui/icons.js';
+import { carrierSvg, rosette } from './ui/ui.js';
 
 const BADGES = {
   'first-cat': ['paw', '#f6b941'], 'full-carrier': ['carrier', '#4f9a5e'], 'under-par': ['clock', '#3f7fcb'],
@@ -239,9 +239,13 @@ const SCENES = {
         if (i === 76) view.hints.stars(k.x + 0.4, k.z + 0.2);
       },
       camera: () => stage.look(2.05, 9.25, 5.2),
-      after: () => overlay(`<div style="position:absolute;right:70px;top:110px;text-align:center">
-        <div class="ink" style="font:900 112px/1 Fraunces,serif">All in!</div>
-        <div style="display:flex;gap:14px;justify-content:center;margin-top:18px">${star(true, 96)}${star(true, 96)}${star(true, 96)}</div></div>`),
+      // the three stars as the results show them: all in, under par, the room's challenge (a Cat Train here)
+      after: () => {
+        const sock = (pic) => `<span style="display:grid;place-items:center;width:118px;height:118px;border-radius:50%;background:#3b2622;border:5px solid #2b1d1c;box-shadow:0 7px 0 #2b1d1c,inset 0 0 0 4px #f6b94155">${pic}</span>`;
+        overlay(`<div style="position:absolute;right:64px;top:96px;text-align:center">
+        <div class="ink" style="font:900 116px/1 Fraunces,serif;transform:rotate(-4deg)">All in!</div>
+        <div style="display:flex;gap:18px;justify-content:center;margin-top:30px">${sock(icon('carrier', { fill: '#f6b941', size: 76 }))}${sock(icon('clockface', { fill: '#f6b941', size: 76 }))}${sock(challengeIcon('train', { fill: '#f6b941', size: 80 }))}</div></div>`);
+      },
     };
   },
 

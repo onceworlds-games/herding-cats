@@ -84,3 +84,53 @@ export function runStudio(params) {
   requestAnimationFrame(frame);
   setTimeout(() => { document.body.dataset.ready = '1'; }, 600);
 }
+
+/** Every model in the furniture file in a grid, natural size, a red marker on each one's +z side (?poster=kit). */
+export async function runKit(params) {
+  const { loadAssets, kitModel } = await import('./render/assets.js');
+  const A = await loadAssets();
+  const canvas = document.getElementById('world');
+  const W = innerWidth, H = innerHeight;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setSize(W, H);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#d9c6a8');
+  scene.add(new THREE.HemisphereLight('#ffffff', '#806050', 2.2));
+  const dl = new THREE.DirectionalLight('#ffffff', 1.5);
+  dl.position.set(3, 6, 5);
+  scene.add(dl);
+  const names = [...A.kit.keys()];
+  const page = Number(params.get('page') ?? 0);
+  const per = 12;
+  const list = names.slice(page * per, page * per + per);
+  const cols = 4;
+  list.forEach((name, i) => {
+    const m = kitModel(name);
+    const S = m.userData.size;
+    const s = 1.6 / Math.max(S.x, S.y, S.z);
+    m.scale.setScalar(s);
+    const col = i % cols, row = Math.floor(i / cols);
+    m.position.set((col - (cols - 1) / 2) * 3.2, 0, row * 3.4 - 3.4);
+    scene.add(m);
+    const mk = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.3, 8), new THREE.MeshBasicMaterial({ color: '#ff0000' }));
+    mk.rotation.x = Math.PI / 2;
+    mk.position.set(m.position.x, 0.05, m.position.z + 1.0);
+    scene.add(mk);
+    const cv = document.createElement('canvas');
+    cv.width = 256; cv.height = 48;
+    const g = cv.getContext('2d');
+    g.font = 'bold 30px sans-serif';
+    g.fillStyle = '#000';
+    g.fillText(`${name} ${S.x.toFixed(2)}x${S.y.toFixed(2)}x${S.z.toFixed(2)}`.slice(0, 22), 4, 34);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false }));
+    sp.scale.set(2.2, 0.42, 1);
+    sp.position.set(m.position.x, 0, m.position.z + 1.45);
+    scene.add(sp);
+  });
+  const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 200);
+  camera.position.set(0, 9, 17);
+  camera.lookAt(0, 0, 0.6);
+  renderer.render(scene, camera);
+  document.body.dataset.ready = '1';
+}

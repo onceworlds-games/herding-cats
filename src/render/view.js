@@ -74,9 +74,10 @@ export function createView(stage, { onStamp = null } = {}) {
     clearScene();
     v.g = g;
     v.floor = g.room.floor;
-    v.room = buildRoom(g.room, g.world);
+    v.room = buildRoom(g.room, g.world, { quality: stage.quality, onLand });
     root.add(v.room.group);
     stage.setRoom(g.room.w, g.room.d);
+    stage.backdrop.set(v.room.backdrop);
     v.looks = opts.looks ?? [];
     v.totalMode = opts.total ?? 'solo';
     v.local = opts.local !== false;
@@ -111,6 +112,18 @@ export function createView(stage, { onStamp = null } = {}) {
     ring.visible = false;
   };
 
+  // a knocked thing hits the floor
+  function onLand(p, speed, broke) {
+    if (broke) {
+      fx.shards(p.x, 0.12, p.z, p.color);
+      sfx.crash();
+      stage.shake(0.3);
+    } else {
+      fx.dust(p.x, p.z, 4);
+      if (speed > 1.5) { sfx.knock(); stage.shake(0.1); }
+    }
+  }
+
   function catAt(id) {
     return v.g?.cats[id] ?? null;
   }
@@ -141,17 +154,18 @@ export function createView(stage, { onStamp = null } = {}) {
         break;
       }
       case 'crash': {
+        const from = c ? { x: c.x, z: c.z } : null;
         let spot = null;
-        if (Number.isInteger(e.s)) spot = v.room?.knock(e.s);
+        if (Number.isInteger(e.s)) spot = v.room?.knock(e.s, from);
         if (!spot) {
           const i = g.world.solids.findIndex((s) => s.perch && e.x >= s.x0 - 1 && e.x <= s.x1 + 1 && e.z >= s.z0 - 1 && e.z <= s.z1 + 1);
-          if (i >= 0) spot = v.room?.knock(i);
+          if (i >= 0) spot = v.room?.knock(i, from);
         }
-        const x = e.x ?? spot?.x ?? 0;
-        const z = e.z ?? spot?.z ?? 0;
-        fx.shards(x, 0.15, z, spot?.color ?? '#fff3df');
-        sfx.crash();
-        stage.shake(0.35);
+        if (!spot) {
+          fx.shards(e.x ?? 0, 0.15, e.z ?? 0, '#fff3df');
+          sfx.crash();
+          stage.shake(0.3);
+        }
         break;
       }
       case 'hide': case 'scared': sfx.squeak(); break;
@@ -229,6 +243,7 @@ export function createView(stage, { onStamp = null } = {}) {
       view.update(q, dt, t, { away: opts.away?.has(i), reducedMotion: opts.reducedMotion });
     });
     v.drawn = proxies;
+    v.room?.update(t, dt);
     fx.update(dt, t);
     fx.setScale(stage.h / stage.span);
     // my ring

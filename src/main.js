@@ -22,6 +22,7 @@ const joining = joinOnce();
 
 import * as THREE from 'three';
 import { createStage, screenToWorld } from './render/stage.js';
+import { loadAssets } from './render/assets.js';
 import { createView } from './render/view.js';
 import { makeCarrier } from './render/carriers.js';
 import { createGame, addPerson, step, treats, clap, loose } from './sim/game.js';
@@ -35,7 +36,9 @@ import * as save from './save.js';
 import { $ui, el, esc, button, star, stars, carrierSvg, rosette, clockFace, fmt, fmtTime, bookCards, stampAt } from './ui/ui.js';
 import { symbolSvg } from './ui/symbols.js';
 
-if (POSTER === 'studio') {
+if (POSTER === 'kit') {
+  import('./studio.js').then((m) => m.runKit(params));
+} else if (POSTER === 'studio') {
   import('./studio.js').then((m) => m.runStudio(params)).catch((e) => { console.error(e); document.body.dataset.ready = '1'; });
 } else if (POSTER) {
   import('./poster.js').then((m) => m.renderPoster(POSTER)).catch((e) => { console.error(e); document.body.dataset.ready = '1'; });
@@ -1425,6 +1428,8 @@ async function boot() {
   }
 
   // ------------------------------------------------------------------ go
+  // the furniture, people and surfaces come first: every room is built from them
+  await loadAssets().catch((e) => console.warn('assets', e));
   requestAnimationFrame(frame);
   if (AUTOPLAY) {
     await loading;

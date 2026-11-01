@@ -1,6 +1,8 @@
 // Store art: ?poster=<name> draws one staged, deterministic frame with the real renderer (no SDK, no room, no HUD).
 
 import { createStage } from './render/stage.js';
+import { loadAssets } from './render/assets.js';
+import { freeSpot } from './sim/world.js';
 import { createView } from './render/view.js';
 import { createGame, addPerson } from './sim/game.js';
 import { ROOMS, arena } from './sim/rooms.js';
@@ -58,11 +60,13 @@ export async function renderPoster(name) {
     return;
   }
 
+  await loadAssets();
   const canvas = document.getElementById('world');
   canvas.style.width = `${W}px`;
   canvas.style.height = `${H}px`;
   const stage = createStage(canvas, { poster: true });
-  stage.setQuality('high', 1);
+  const q = new URLSearchParams(location.search);
+  stage.setQuality(q.get('q') ?? 'high', 1);
   stage.resize(W, H);
   const view = createView(stage);
   const scene = SCENES[name] ?? SCENES.cover;
@@ -109,6 +113,34 @@ function room(roomDef, opts = {}) {
 }
 
 const SCENES = {
+  // a look at one room (?poster=room&room=studio&x=6&z=4&span=9): a few cats about, the person by the door
+  room(view, stage) {
+    const q = new URLSearchParams(location.search);
+    const id = q.get('room') ?? 'studio';
+    const g = room(ROOMS[id] ?? ROOMS.studio);
+    const rng = { s: 11, next() { this.s = (this.s * 16807) % 2147483647; return this.s / 2147483647; } };
+    const coats = ['ginger', 'tuxedo', 'calico', 'grey', 'tortie', 'siamese', 'black', 'white'];
+    const types = ['moggy', 'loaf', 'zoomer', 'scaredy', 'glutton', 'moggy', 'kitten', 'moggy'];
+    const sts = [S.idle, S.sleep, S.walk, S.idle, S.idle, S.walk, S.idle, S.idle];
+    const n = Number(q.get('cats') ?? 6);
+    const placed = [];
+    for (let i = 0; i < n; i++) {
+      const p = freeSpot(g.world, rng, { avoid: placed, gap: 1.6 });
+      placed.push(p);
+      cat(g, types[i % types.length], coats[i % coats.length], p.x, p.z, sts[i % sts.length], { h: rng.next() * 6.28, sp: sts[i % sts.length] === S.walk ? 1.2 : 0 });
+    }
+    const me = addPerson(g, { id: 'me', x: g.room.entry.x, z: g.room.entry.z + 0.6 });
+    me.h = Math.PI / 2;
+    view.show(g, { people: [{ avatar: null, seed: 3, look: SEATS[0] }], me: 0 });
+    const span = Number(q.get('span') ?? 0);
+    return {
+      me,
+      camera() {
+        if (span) stage.look(Number(q.get('x') ?? g.room.w / 2), Number(q.get('z') ?? g.room.d / 2), span);
+        else { stage.frame(null, { snap: true }); stage.update(0); }
+      },
+    };
+  },
   // the cover: a train of cats walked into the red carrier, one up on the sofa, the count on the shell
   cover(view, stage) {
     const g = room(ROOMS.studio);

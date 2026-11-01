@@ -129,9 +129,15 @@ const SCENES = {
       placed.push(p);
       cat(g, types[i % types.length], coats[i % coats.length], p.x, p.z, sts[i % sts.length], { h: rng.next() * 6.28, sp: sts[i % sts.length] === S.walk ? 1.2 : 0 });
     }
-    const me = addPerson(g, { id: 'me', x: g.room.entry.x, z: g.room.entry.z + 0.6 });
-    me.h = Math.PI / 2;
-    view.show(g, { people: [{ avatar: null, seed: 3, look: SEATS[0] }], me: 0 });
+    const np = Number(q.get('people') ?? 1);
+    let me = null;
+    for (let i = 0; i < np; i++) {
+      const p = addPerson(g, { id: `p${i}`, x: g.room.entry.x + i * 1.1, z: g.room.entry.z + 0.6 });
+      p.h = Math.PI / 2 + i * 0.6;
+      p.sp = Number(q.get('psp') ?? 0);
+      me ??= p;
+    }
+    view.show(g, { people: Array.from({ length: np }, (_, i) => ({ avatar: null, seed: 3 + i, look: SEATS[i % SEATS.length] })), me: 0 });
     const span = Number(q.get('span') ?? 0);
     return {
       me,

@@ -138,13 +138,27 @@ export function createStage(canvas, { poster = false } = {}) {
       sun.shadow.mapSize.set(size, size);
       if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
     }
-    // without shadows the sun would light the whole room: keep it gentle then
-    sun.intensity = size ? 10 : 1.1;
-    hemi.intensity = size ? 1.0 : 1.45;
-    key.intensity = size ? 0.8 : 0.95;
+    applyLight();
     buildComposer();
     st.resize(st.w, st.h);
   };
+
+  // indoors the sun only lands through the windows, so it can be strong; outdoors it lands everywhere
+  function applyLight() {
+    const shadows = sun.castShadow;
+    if (st.outdoor) {
+      sun.intensity = shadows ? 3.4 : 2.0;
+      hemi.intensity = 1.15;
+      key.intensity = 0.55;
+    } else {
+      // without shadows the sun would light the whole room: keep it gentle then
+      sun.intensity = shadows ? 10 : 1.1;
+      hemi.intensity = shadows ? 1.0 : 1.45;
+      key.intensity = shadows ? 0.8 : 0.95;
+    }
+  }
+  st.outdoor = false;
+  st.setOutdoor = (on) => { st.outdoor = !!on; applyLight(); };
 
   st.resize = (w, h) => {
     st.w = Math.max(1, w);

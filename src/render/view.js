@@ -78,6 +78,7 @@ export function createView(stage, { onStamp = null } = {}) {
     root.add(v.room.group);
     stage.setRoom(g.room.w, g.room.d);
     stage.backdrop.set(v.room.backdrop);
+    stage.setOutdoor(v.room.outdoor);
     v.looks = opts.looks ?? [];
     v.totalMode = opts.total ?? 'solo';
     v.local = opts.local !== false;

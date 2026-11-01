@@ -614,7 +614,7 @@ const BUILD = {
     for (let x = -w / 2 + 0.2; x < w / 2; x += 0.3) P.box('#62805e', x, 0, d / 2 + 0.005, 0.02, 1.8, 0.01);
     const roof = new THREE.CylinderGeometry(0.01, 1, 1, 4, 1);
     roof.rotateY(Math.PI / 4);
-    P.mesh(roof, std('#5e3b26', 0.8), 0, 2.15, 0, w * 1.5, 0.7, d * 1.5);
+    P.mesh(roof, std('#5e3b26', 0.8), 0, 2.15, 0, w * 0.78, 0.7, d * 0.78);
     P.box('#4a3324', 0, 0, d / 2 + 0.02, 0.8, 1.5, 0.04);
   },
   flowerbed(P, w, d) {
@@ -865,7 +865,7 @@ export function buildRoom(room, world, { quality = 'high', onLand = null } = {})
   slab.receiveShadow = true;
   group.add(slab);
   if (room.sea) {
-    const sea = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), mat('sea', () => new THREE.MeshStandardMaterial({ color: '#3c87a6', roughness: 0.2, metalness: 0.1 })));
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), mat('sea', () => new THREE.MeshStandardMaterial({ color: '#3c87a6', roughness: 0.6, metalness: 0 })));
     sea.rotation.x = -Math.PI / 2;
     sea.position.set(W / 2, -1.0, D / 2);
     sea.receiveShadow = true;
@@ -1277,6 +1277,7 @@ export function buildRoom(room, world, { quality = 'high', onLand = null } = {})
     windows,
     pieces,
     backdrop: room.floor === 'grass' ? '#24301f' : room.sea ? '#2d5f78' : '#2a1c19',
+    outdoor,
     /** A cat swatted something off piece `solid` from `from` {x, z}: it slides off the far edge and falls. */
     knock(solid, from = null) {
       const list = (bySolid[solid] ?? []).filter((p) => p.state === 'rest');

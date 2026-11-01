@@ -246,8 +246,11 @@ export function easeOffsets(s, dt) {
   }
 }
 
-/** Advance the round on this page by real time `dt`: the host to the match clock, a predicting page on its own. */
-export function advance(s, dt, matchSeconds) {
+/**
+ * Advance the round on this page by real time `dt`: the host to the match clock, a predicting page on its own. `before` runs
+ * ahead of each step (the renderer keeps the last positions to draw between steps).
+ */
+export function advance(s, dt, matchSeconds, before = null) {
   const g = s.g;
   if (g.over) return 0;
   let steps = 0;
@@ -255,12 +258,14 @@ export function advance(s, dt, matchSeconds) {
     // the match clock is the truth: catch up (a background tab) a couple of seconds at most at a time
     const goal = matchSeconds ?? g.time + dt;
     while (g.time + STEP <= goal + 1e-6 && steps < 60 && !g.over) {
+      before?.();
       hostStep(s);
       steps++;
     }
   } else {
     s.acc += Math.min(dt, 0.25);
     while (s.acc >= STEP && steps < 8) {
+      before?.();
       step(g, STEP);
       recordMe(s);
       s.acc -= STEP;
@@ -268,6 +273,12 @@ export function advance(s, dt, matchSeconds) {
     }
   }
   return steps;
+}
+
+/** How far between the last step and the next this page is drawing (0-1). */
+export function stepAlpha(s, matchSeconds) {
+  if (s.host) return Math.max(0, Math.min(1, ((matchSeconds ?? s.g.time) - s.g.time) / STEP));
+  return Math.max(0, Math.min(1, s.acc / STEP));
 }
 
 /** The round's score: cats in each seat's carrier (Versus), or credits per seat (Together). */

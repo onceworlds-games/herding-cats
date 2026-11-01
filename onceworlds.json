@@ -1,0 +1,135 @@
+{
+  "slug": "herding-cats",
+  "name": "Herding Cats",
+  "description": "Get every cat into the carrier before the vet closes. Good luck.",
+  "dir": "dist",
+  "productionBranch": "main",
+  "genre": "Party",
+  "icon": "store/icon.png",
+  "thumbnails": [
+    "store/thumb-1.png",
+    "store/thumb-2.png",
+    "store/thumb-3.png",
+    "store/thumb-4.png"
+  ],
+  "controls": [
+    {
+      "keys": [
+        "W",
+        "A",
+        "S",
+        "D"
+      ],
+      "action": "Walk (cats walk away from you)"
+    },
+    {
+      "keys": [
+        "Arrows"
+      ],
+      "action": "Walk"
+    },
+    {
+      "keys": [
+        "Stick"
+      ],
+      "action": "Walk on a phone"
+    },
+    {
+      "keys": [
+        "J",
+        "Space",
+        "Treats"
+      ],
+      "action": "Shake treats: nearby cats follow"
+    },
+    {
+      "keys": [
+        "K",
+        "Shift",
+        "Clap"
+      ],
+      "action": "Clap: nearby cats bolt away"
+    },
+    {
+      "keys": [
+        "Esc",
+        "P"
+      ],
+      "action": "Pause (solo)"
+    },
+    {
+      "keys": [
+        "Enter"
+      ],
+      "action": "The main button on every screen"
+    },
+    {
+      "keys": [
+        "R"
+      ],
+      "action": "Retry the appointment"
+    }
+  ],
+  "badges": [
+    {
+      "id": "first-cat",
+      "name": "First Cat",
+      "description": "Box your first cat.",
+      "icon": "store/badge-first-cat.png"
+    },
+    {
+      "id": "full-carrier",
+      "name": "Full Carrier",
+      "description": "Finish an appointment.",
+      "icon": "store/badge-full-carrier.png"
+    },
+    {
+      "id": "under-par",
+      "name": "Under Par",
+      "description": "Beat an appointment's par time.",
+      "icon": "store/badge-under-par.png"
+    },
+    {
+      "id": "boss-move",
+      "name": "Boss Move",
+      "description": "Box the Boss first, then its whole gang.",
+      "icon": "store/badge-boss-move.png"
+    },
+    {
+      "id": "zoomies",
+      "name": "Zoomies",
+      "description": "Box a Zoomer mid-sprint.",
+      "icon": "store/badge-zoomies.png"
+    },
+    {
+      "id": "cat-cafe",
+      "name": "Cat Café",
+      "description": "Three stars at the Cat Café.",
+      "icon": "store/badge-cat-cafe.png"
+    },
+    {
+      "id": "fifteen-appointments",
+      "name": "Fifteen Appointments",
+      "description": "Finish all fifteen appointments.",
+      "icon": "store/badge-fifteen-appointments.png"
+    },
+    {
+      "id": "crazy-cat-person",
+      "name": "Crazy Cat Person",
+      "description": "Box 500 cats.",
+      "icon": "store/badge-crazy-cat-person.png"
+    },
+    {
+      "id": "best-in-show",
+      "name": "Best in Show",
+      "description": "Win a Versus match.",
+      "icon": "store/badge-best-in-show.png"
+    },
+    {
+      "id": "cat-lady",
+      "name": "Cat Lady",
+      "description": "Box 25 cats in one shift.",
+      "icon": "store/badge-cat-lady.png"
+    }
+  ]
+}

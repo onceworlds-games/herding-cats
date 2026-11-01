@@ -183,10 +183,10 @@ function fitSpan(w, d, aspect) {
     minY = Math.min(minY, ry);
     maxY = Math.max(maxY, ry);
   }
-  // walls stand 2.6 u on the far edges
-  maxY += 2.6 * Math.cos(PITCH);
-  const width = (maxX - minX) * 1.08;
-  const height = (maxY - minY) * 1.12;
+  // walls stand 2.6 u on the far edges; their tops may run under the HUD
+  maxY += 1.8 * Math.cos(PITCH);
+  const width = (maxX - minX) * 1.06;
+  const height = (maxY - minY) * 1.08;
   // span = the short side
   if (aspect >= 1) return Math.max(height, width / aspect);
   return Math.max(width, height * aspect);

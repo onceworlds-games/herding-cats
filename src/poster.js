@@ -165,9 +165,11 @@ const SCENES = {
     return {
       before: (i) => {
         if (i === 40) { me.clapSeq = 1; view.carriers[0].gulp(); }
-        if (i === 72) view.hints.confetti(k.x + 1.2, k.z, ['#e5493a', '#f6b941', '#fff3df', '#4f9a5e']);
+        if (i === 56) view.hints.confetti(k.x + 0.6, k.z - 0.4, ['#e5493a', '#f6b941', '#fff3df', '#4f9a5e']);
+        if (i === 68) view.hints.confetti(k.x + 1.5, k.z + 0.5, ['#e5493a', '#f6b941', '#fff3df', '#3f7fcb']);
+        if (i === 76) view.hints.stars(k.x + 0.4, k.z + 0.2);
       },
-      camera: () => stage.look(2.6, 9.6, 6.2),
+      camera: () => stage.look(2.05, 9.25, 5.2),
       after: () => overlay(`<div style="position:absolute;right:70px;top:110px;text-align:center">
         <div class="ink" style="font:900 112px/1 Fraunces,serif">All in!</div>
         <div style="display:flex;gap:14px;justify-content:center;margin-top:18px">${star(true, 96)}${star(true, 96)}${star(true, 96)}</div></div>`),
@@ -198,6 +200,6 @@ const SCENES = {
     view.show(g, { people: [], me: -1, total: 'solo' });
     view.carriers[0].sign.visible = false;
     g.people.length = 0;
-    return { camera: () => stage.look(k.x + 0.75, k.z + 0.05, 2.7) };
+    return { camera: () => stage.look(k.x + 0.62, k.z, 3.2) };
   },
 };

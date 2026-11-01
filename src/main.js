@@ -66,13 +66,14 @@ async function boot() {
     let rt = 12;
     let lb = 96;
     let bb = 16;
+    let menuEdge = 0; // how far right the top-left menu reaches
     if (Array.isArray(r)) {
       lt = 12;
       lb = 16;
       for (const a of r) {
         if (!a || !Number.isFinite(a.y)) continue;
         if (a.kind === 'menu') {
-          if (a.x < W / 2 && a.y < H / 2) lt = Math.max(lt, a.y + a.h + 8);
+          if (a.x < W / 2 && a.y < H / 2) { lt = Math.max(lt, a.y + a.h + 8); menuEdge = Math.max(menuEdge, a.x + a.w); }
           if (a.x >= W / 2 && a.y < H / 2) rt = Math.max(rt, a.y + a.h + 8);
         }
         if (a.kind === 'lobby') lb = Math.max(lb, H - a.y + 10);
@@ -83,7 +84,9 @@ async function boot() {
     root.setProperty('--rt', `${rt}px`);
     root.setProperty('--lb', `${lb}px`);
     root.setProperty('--bb', `${bb}px`);
-    root.setProperty('--ct', `${12 + (app.watching ? 40 : 0)}px`);
+    // the clock sits top centre, or under the menu when a narrow screen puts them side by side
+    const ct = menuEdge > W / 2 - 112 ? lt : 12;
+    root.setProperty('--ct', `${ct + (app.watching ? 40 : 0)}px`);
   }
 
   // ------------------------------------------------------------------ app state
@@ -271,7 +274,7 @@ async function boot() {
     startAttract();
     const root = el('section', '', '');
     root.id = 'title';
-    root.innerHTML = `<div class="mark ink"><h1><span>Herding</span><span class="cats"><i class="ear" style="left:0.06em"></i><i class="ear" style="left:0.36em"></i>Cats</span></h1></div>`;
+    root.innerHTML = `<div class="mark ink"><h1><span>Herding</span><span>Cats</span></h1></div>`;
     const play = button('Play', { cls: 'red big play live', key: 'Enter', onClick: () => onPlay() });
     root.appendChild(play);
     const total = save.totalStars();
@@ -347,8 +350,8 @@ async function boot() {
     L.tickets.innerHTML = '';
     const t1 = el('button', 'ticket live');
     t1.type = 'button';
-    t1.innerHTML = `<span class="name">Appointments</span><span class="sub">${friends ? 'Friends are here' : 'Solo, 15 rooms'}</span><span class="val">${star(true, 30)}${save.totalStars()}</span>`;
-    if (!save.levelDone(1) && !friends) t1.insertAdjacentHTML('beforeend', '<span class="flag">Start here</span>');
+    const first = !save.levelDone(1) && !friends;
+    t1.innerHTML = `<span class="name">Appointments</span>${first ? '<span class="sub flag">Start here</span>' : `<span class="sub">${friends ? 'Friends are here' : 'Solo, 15 rooms'}</span>`}<span class="val">${star(true, 30)}${save.totalStars()}</span>`;
     if (friends) t1.disabled = true;
     else t1.addEventListener('click', () => { sfx.tap(); showBook(); });
     const open = save.catLadyOpen();
@@ -518,7 +521,7 @@ async function boot() {
 
   function followSpan() {
     const short = Math.min(innerWidth, innerHeight);
-    return short / 34;
+    return short / 40;
   }
 
   function startLevel(n, { auto = false } = {}) {

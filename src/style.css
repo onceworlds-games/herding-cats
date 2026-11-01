@@ -54,8 +54,6 @@ body { font-family: var(--word); font-weight: 700; -webkit-user-select: none; us
 #title .mark { margin-top: max(9vh, calc(var(--lt) - 20px)); text-align: center; line-height: 0.86; }
 #title .mark h1 { margin: 0; font: 900 clamp(56px, 11vw, 132px)/0.86 var(--word); letter-spacing: -0.02em; }
 #title .mark h1 span { display: block; }
-#title .mark h1 .cats { position: relative; display: inline-block; }
-#title .mark h1 .ear { position: absolute; width: 0.2em; height: 0.2em; top: -0.06em; background: var(--cream); border: 0.045em solid var(--ink); border-bottom: none; border-right: none; transform: rotate(45deg); }
 #title .play { margin-top: auto; margin-bottom: max(16vh, 120px); }
 #title .stats { position: absolute; bottom: max(8vh, 56px); font-size: 26px; display: flex; gap: 22px; align-items: center; }
 #title .stats span { display: inline-flex; align-items: center; gap: 6px; }
@@ -88,7 +86,8 @@ body { font-family: var(--word); font-weight: 700; -webkit-user-select: none; us
 .ticket .val { grid-row: 1 / span 2; grid-column: 2; font: 800 34px/1 var(--num); display: flex; align-items: center; gap: 6px; }
 .ticket.gold { background: var(--gold); }
 .ticket.locked { background: #d8c9b2; cursor: default; }
-.ticket .flag { position: absolute; top: -2px; right: 16px; background: var(--red); color: var(--cream); font: 700 16px/1 var(--word); padding: 6px 10px 7px; border-radius: 0 0 8px 8px; border: 3px solid var(--ink); border-top: none; }
+.ticket .flag { justify-self: start; background: var(--red); color: var(--cream); font: 700 15px/1 var(--word); padding: 4px 9px 5px; border-radius: 7px; border: 2px solid var(--ink); }
+#lobby .tickets { display: grid; gap: 10px; }
 .ticket[disabled] { opacity: 0.6; cursor: default; }
 .tag {
   position: absolute; transform: translate(-50%, -100%); white-space: nowrap; font: 700 17px/1 var(--word);

@@ -1,5 +1,5 @@
 // The Daily Appointment: one room, one line-up of cats, one twist and one challenge a day, the same for every player
-// (seeded by the UTC day). Its par comes from a formula fitted to the herder bot's times (tools: daily.mjs).
+// (seeded by the UTC day). Its par comes from the herder bot's times (tools/daily.mjs).
 
 import { ROOMS } from './rooms.js';
 import { makeRng } from './rng.js';
@@ -21,8 +21,13 @@ export const weekday = (day) => WEEKDAYS[(((day + 4) % 7) + 7) % 7];
 export const DAILY_ROOMS = ['studio', 'living', 'bedroom', 'kitchen', 'laundry', 'bedroom2', 'garden', 'cafe', 'library', 'movingday', 'greenhouse', 'hallway'];
 const TWISTS = ['laser', 'vacuum', 'bell', 'boxes', 'none'];
 const CHALLENGE_POOL = ['double', 'triple', 'noclap', 'notreats', 'bank', 'chain', 'loaf', 'boss', 'zoomies', 'laser', 'ride', 'box', 'nohide', 'nocrash'];
-// the bot's time is about A + B per cat + the twist's extra (fitted in tools/daily.mjs)
-export const DAILY_PAR = { base: 6, perCat: 6.5, area: 0.05, twist: { laser: 2, vacuum: 3, bell: 6, boxes: 2, none: 0 } };
+// par: seconds per cat in that room, plus the twist's extra and a little per Loaf (from the herder bot's times over 160
+// days, tools/daily.mjs)
+export const DAILY_PAR = {
+  perCat: { studio: 8.5, living: 9.5, bedroom: 9.5, hallway: 10.5, laundry: 7, bedroom2: 10, kitchen: 9.5, greenhouse: 11, library: 13.5, cafe: 11.5, garden: 12.5, movingday: 12.5 },
+  twist: { laser: 6, vacuum: 3, bell: 3, boxes: 2, none: 0 },
+  loaf: 4,
+};
 
 /** Today's appointment: { day, name, room, cats, twists, twist, challenge, par, expert, closes }. */
 export function dailySetup(day) {
@@ -87,8 +92,8 @@ export function dailySetup(day) {
   }
   const challenges = CHALLENGE_POOL.filter((id) => possible(id, { types, twists }));
   const challenge = rng.pick(challenges);
-  const area = room.w * room.d;
-  const parRaw = DAILY_PAR.base + DAILY_PAR.perCat * cats.length + DAILY_PAR.area * area + DAILY_PAR.twist[twist];
+  const loafs = cats.filter((c) => c.type === 'loaf').length;
+  const parRaw = (DAILY_PAR.perCat[roomId] ?? 10) * cats.length + DAILY_PAR.twist[twist] + DAILY_PAR.loaf * loafs;
   const par = Math.round(parRaw / 5) * 5;
   const expert = Math.max(10, Math.round((par * 0.6) / 5) * 5);
   const closes = Math.max(120, Math.ceil((par * 2.2) / 30) * 30);

@@ -35,7 +35,9 @@ import * as save from './save.js';
 import { $ui, el, esc, button, star, stars, carrierSvg, rosette, clockFace, fmt, fmtTime, bookCards, stampAt } from './ui/ui.js';
 import { symbolSvg } from './ui/symbols.js';
 
-if (POSTER) {
+if (POSTER === 'studio') {
+  import('./studio.js').then((m) => m.runStudio(params)).catch((e) => { console.error(e); document.body.dataset.ready = '1'; });
+} else if (POSTER) {
   import('./poster.js').then((m) => m.renderPoster(POSTER)).catch((e) => { console.error(e); document.body.dataset.ready = '1'; });
 } else {
   boot();

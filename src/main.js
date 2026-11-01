@@ -14,6 +14,8 @@ const POSTER = params.get('poster');
 // goes that far like a player would
 const AUTOPLAY = params.has('autoplay') && !/onceworlds\.com$/.test(location.hostname);
 const AUTOPLAY_TO = /onceworlds\.com$/.test(location.hostname) ? null : params.get('autoplay-to');
+// a take's camera: about this many units across the short side, following the herder (autoplay only)
+const TAKE_SPAN = AUTOPLAY ? Math.max(0, Math.min(30, Number(params.get('zoom')) || 0)) : 0;
 const ow = POSTER ? null : window.onceworlds ?? null;
 // join first (join.js already started it as the page loaded), so a reload keeps its seat
 const joining = joinOnce();
@@ -212,6 +214,57 @@ async function boot() {
       if (!tagSeen.has(id)) { t.remove(); tagPool.delete(id); }
     }
     tagSeen = new Set();
+  }
+
+  // ------------------------------------------------------------------ edge arrows: my carrier and the last cats, when off screen
+  const arrowPool = new Map();
+  let arrowSeen = new Set();
+  function edgeArrow(id, x, y, z, color, sym) {
+    const p = stage.toScreen(x, y, z);
+    const W = innerWidth;
+    const H = innerHeight;
+    const side = 34;
+    const top = 92;
+    const bottom = app.touch ? 150 : 56;
+    if (p.x > side && p.x < W - side && p.y > top && p.y < H - bottom) return;
+    let a = arrowPool.get(id);
+    if (!a) {
+      a = el('div', 'edge', '<i></i><b></b>');
+      tags.appendChild(a);
+      arrowPool.set(id, a);
+      a._k = '';
+    }
+    const k = `${color}|${sym}`;
+    if (a._k !== k) {
+      a._k = k;
+      a.firstChild.style.background = color;
+      a.lastChild.innerHTML = sym === 'carrier' ? carrierSvg(color) : symbolSvg(sym, '#fff3df', '#2b1d1c', 22);
+    }
+    // from the middle of the safe box toward the target, stopped at its edge
+    const x0 = side;
+    const x1 = W - side;
+    const y0 = top;
+    const y1 = H - bottom;
+    const cx = (x0 + x1) / 2;
+    const cy = (y0 + y1) / 2;
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    const f = Math.min((x1 - cx) / Math.max(1e-3, Math.abs(dx)), (y1 - cy) / Math.max(1e-3, Math.abs(dy)), 1);
+    a.style.transform = `translate(${(cx + dx * f).toFixed(1)}px, ${(cy + dy * f).toFixed(1)}px) translate(-50%, -50%)`;
+    a.firstChild.style.transform = `rotate(${(Math.atan2(dy, dx) - Math.PI * 0.75).toFixed(3)}rad)`;
+    arrowSeen.add(id);
+  }
+  function arrowsDone() {
+    for (const [id, a] of arrowPool) {
+      if (!arrowSeen.has(id)) { a.remove(); arrowPool.delete(id); }
+    }
+    arrowSeen = new Set();
+  }
+  /** Arrows to the carrier I fill and, once three or fewer are loose, to the last cats. */
+  function pointers(g, k, color, sym) {
+    if (k) edgeArrow('k', k.x, 0.5, k.z, color, sym);
+    const left = loose(g);
+    if (left.length <= 3) for (const c of left) edgeArrow(`c${c.id}`, c.x, 0.3 + (c.y || 0), c.z, '#f6b941', 'paw');
   }
 
   // ------------------------------------------------------------------ stamps
@@ -520,6 +573,7 @@ async function boot() {
   }
 
   function followSpan() {
+    if (TAKE_SPAN) return TAKE_SPAN;
     const short = Math.min(innerWidth, innerHeight);
     return short / 40;
   }
@@ -704,6 +758,7 @@ async function boot() {
     }
     // hints and the new cat's tag
     soloHints(r);
+    if (!r.over && !(r.introCat && r.introT > 0)) pointers(g, g.carriers[0], '#e5493a', 'carrier');
     // camera
     const focus = r.introCat && r.introT > 0 ? r.introCat : r.me;
     stage.frame(focus, { follow: followSpan(), zoom: r.introCat && r.introT > 0 ? 0.8 : 1 });
@@ -978,9 +1033,16 @@ async function boot() {
     }
     const span = matchFollow();
     stage.frame(focus, focus ? { follow: span } : { zoom: 1.02 });
+    const mineI = s.me ? s.data.seats.indexOf(s.me) : -1;
+    if (src.phase === 'round' && mineI >= 0 && !s.g.over) {
+      const together = s.data.mode === 'together';
+      const k = s.g.carriers[together ? 0 : mineI];
+      pointers(s.g, k, together ? '#e5493a' : SEATS[mineI].color, together ? 'carrier' : SEATS[mineI].symbol);
+    }
   }
 
   function matchFollow() {
+    if (TAKE_SPAN) return TAKE_SPAN;
     const short = Math.min(innerWidth, innerHeight);
     return short / (app.touch ? 34 : 29);
   }
@@ -1246,9 +1308,11 @@ async function boot() {
   // ------------------------------------------------------------------ the loop
   let last = performance.now();
   let touchCheck = 0;
-  function frame(now) {
+  function frame() {
     requestAnimationFrame(frame);
     if (document.hidden) return;
+    // the page's own clock (not the frame's timestamp), which also follows a capture's virtual time
+    const now = performance.now();
     const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
     last = now;
     app.t += dt;
@@ -1316,6 +1380,7 @@ async function boot() {
     stage.update(dt);
     stage.render();
     tagsDone();
+    arrowsDone();
   }
 
   // ------------------------------------------------------------------ autoplay (trailer takes, never on onceworlds.com)

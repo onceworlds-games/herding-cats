@@ -10,7 +10,6 @@
     "@fontsource/big-shoulders-stencil-display": "^5.3.0",
     "@fontsource/fraunces": "^5.3.0",
     "@onceworlds/sdk": "^0.2.0",
-    "gsap": "^3.15.0",
     "three": "^0.187.0"
   },
   "devDependencies": {

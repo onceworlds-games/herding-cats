@@ -68,16 +68,94 @@ function tagTexture(look) {
   return t;
 }
 
-/** k: a simulation carrier. look: { color, symbol } of its owner, or null (solo, together). */
-export function makeCarrier(k, look) {
+// a shell's pattern (meta/herder.js carrier items), painted once per pattern and tiled over the moulding
+const shellTex = new Map();
+function shellTexture(skin) {
+  const key = skin.id;
+  if (shellTex.has(key)) return shellTex.get(key);
+  const S = 256;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const g = cv.getContext('2d');
+  g.fillStyle = skin.shell;
+  g.fillRect(0, 0, S, S);
+  g.fillStyle = skin.ink;
+  g.strokeStyle = skin.ink;
+  let r = 11;
+  const rnd = () => (r = (r * 16807) % 2147483647) / 2147483647;
+  if (skin.pattern === 'dots') {
+    for (let y = 0; y < 4; y++) for (let x = -1; x < 5; x++) { g.beginPath(); g.arc(x * 64 + (y % 2 ? 32 : 0), y * 64 + 32, 13, 0, Math.PI * 2); g.fill(); }
+  } else if (skin.pattern === 'stripes') {
+    g.lineWidth = 22;
+    for (let i = -4; i < 8; i++) { g.beginPath(); g.moveTo(i * 64, 0); g.lineTo(i * 64 + S, S); g.stroke(); }
+  } else if (skin.pattern === 'tartan') {
+    g.globalAlpha = 0.55;
+    for (const [w, off] of [[34, 0], [10, 52]]) {
+      for (let i = 0; i < 2; i++) {
+        g.fillRect(i * 128 + off, 0, w, S);
+        g.fillRect(0, i * 128 + off, S, w);
+      }
+    }
+    g.globalAlpha = 0.8;
+    g.fillStyle = '#f6d36b';
+    for (let i = 0; i < 2; i++) { g.fillRect(i * 128 + 90, 0, 4, S); g.fillRect(0, i * 128 + 90, S, 4); }
+    g.globalAlpha = 1;
+  } else if (skin.pattern === 'spots') {
+    for (let i = 0; i < 22; i++) {
+      const x = rnd() * S, y = rnd() * S, rr = 9 + rnd() * 9;
+      g.lineWidth = 6;
+      g.beginPath();
+      g.arc(x, y, rr, rnd() * 6, rnd() * 6 + 4.5);
+      g.stroke();
+      g.globalAlpha = 0.35;
+      g.beginPath(); g.arc(x, y, rr * 0.6, 0, Math.PI * 2); g.fill();
+      g.globalAlpha = 1;
+    }
+  } else if (skin.pattern === 'stars') {
+    const star = (x, y, rr) => {
+      g.beginPath();
+      for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5; const q = i % 2 ? rr * 0.42 : rr; g.lineTo(x + Math.cos(a) * q, y + Math.sin(a) * q); }
+      g.closePath(); g.fill();
+    };
+    for (let i = 0; i < 16; i++) star(rnd() * S, rnd() * S, 6 + rnd() * 9);
+    g.fillStyle = '#fff3df';
+    for (let i = 0; i < 40; i++) { g.beginPath(); g.arc(rnd() * S, rnd() * S, 1.5, 0, Math.PI * 2); g.fill(); }
+  } else if (skin.pattern === 'patches') {
+    for (const [col, n] of [[skin.ink, 4], [skin.ink2, 3]]) {
+      g.fillStyle = col;
+      for (let i = 0; i < n; i++) {
+        const x = rnd() * S, y = rnd() * S;
+        g.beginPath();
+        for (let j = 0; j < 9; j++) { const a = (j / 9) * Math.PI * 2; const q = 26 + rnd() * 22; g.lineTo(x + Math.cos(a) * q, y + Math.sin(a) * q); }
+        g.closePath(); g.fill();
+      }
+    }
+  }
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 4;
+  shellTex.set(key, t);
+  return t;
+}
+
+/**
+ * k: a simulation carrier. look: { color, symbol } of its owner, or null (solo, together). skin: the player's carrier item
+ * (meta/herder.js) for their own carrier in solo, or null.
+ */
+export function makeCarrier(k, look, skin = null) {
   const root = new THREE.Group();
   root.position.set(k.x, 0, k.z);
   // face the door along (nx, nz): build with the door at +x
   root.rotation.y = -Math.atan2(k.nz, k.nx);
   const own = [];
   const M = (o) => { const m = new THREE.MeshStandardMaterial(o); own.push(m); return m; };
-  const red = M({ color: look ? look.color : '#e5493a', roughness: 0.38 });
-  const redDark = M({ color: new THREE.Color(look ? look.color : '#e5493a').multiplyScalar(0.72), roughness: 0.5 });
+  const shell = look ? look.color : skin?.shell ?? '#e5493a';
+  const red = skin?.pattern && !look
+    ? new THREE.MeshStandardMaterial({ map: shellTexture(skin), roughness: 0.42 })
+    : M({ color: shell, roughness: skin?.metal ? 0.25 : 0.38, metalness: skin?.metal ? 0.3 : 0, emissive: skin?.metal ? '#8a5c00' : '#000000', emissiveIntensity: skin?.metal ? 0.45 : 0 });
+  if (skin?.pattern && !look) own.push(red);
+  const redDark = M({ color: new THREE.Color(shell).multiplyScalar(0.72), roughness: 0.5, metalness: skin?.metal ? 0.5 : 0 });
   const base = M({ color: '#f3ead9', roughness: 0.55 });
   const ink = M({ color: '#2b1d1c', roughness: 0.5 });
   const wire = M({ color: '#e4e2dc', roughness: 0.25, metalness: 0.85 });

@@ -23,7 +23,7 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
  */
 export function createNet(room, hooks = {}) {
   const n = {
-    room, match: null, bots: null, session: null, sessionKey: null, lastRaw: null, presT: 0, screen: 'title', rank: 0,
+    room, match: null, bots: null, session: null, sessionKey: null, lastRaw: null, presT: 0, screen: 'title', rank: 0, looks: [0, 0, 0],
     hidden: false, phaseAt: 0, ended: new Set(), before: null, admitted: new Set(),
   };
 
@@ -189,10 +189,17 @@ export function createNet(room, hooks = {}) {
       const me = s?.people.get(s.me);
       try {
         room.setPresence(me
-          ? { x: r2(me.x), z: r2(me.z), h: r2(me.h), v: r2(me.sp), tr: me.treatsSeq, cl: me.clapSeq, s: n.screen, rk: n.rank, r: n.sessionKey }
-          : { s: n.screen, rk: n.rank });
+          ? { x: r2(me.x), z: r2(me.z), h: r2(me.h), v: r2(me.sp), tr: me.treatsSeq, cl: me.clapSeq, s: n.screen, rk: n.rank, r: n.sessionKey, lk: n.looks }
+          : { s: n.screen, rk: n.rank, lk: n.looks });
       } catch { /* ignore */ }
     }
+  };
+
+  /** What a player wears ([hat, clap, trail] item numbers from their presence), checked: null when there's nothing to read. */
+  n.looksOf = (id) => {
+    const lk = room.players?.get?.(id)?.presence?.lk;
+    if (!Array.isArray(lk) || lk.length !== 3 || !lk.every((v) => Number.isInteger(v) && v >= 0 && v < 64)) return null;
+    return lk;
   };
 
   /** This page's player pressed treats or clap. Returns true, 'cooldown', or false (not playing). */

@@ -7,7 +7,7 @@ import { TREATS, CLAP } from '../sim/tuning.js';
 
 const MAXP = 700;
 // sprite sheet cells (4 × 4)
-export const SHAPE = { puff: 0, dot: 1, star: 2, heart: 3, tuft: 4, spark: 5, ring: 6, shard: 7, paw: 8, square: 9, streak: 10, crumb: 11 };
+export const SHAPE = { puff: 0, dot: 1, star: 2, heart: 3, tuft: 4, spark: 5, ring: 6, shard: 7, paw: 8, square: 9, streak: 10, crumb: 11, note: 12, fish: 13, flower: 14, drop: 15 };
 
 function sheetTexture() {
   const S = 512, C = S / 4;
@@ -78,6 +78,28 @@ function sheetTexture() {
     g.fillRect(-r * 0.12, -r, r * 0.24, r * 2);
   });
   cell(SHAPE.crumb, (r) => { g.beginPath(); g.moveTo(-r * 0.5, -r * 0.2); g.lineTo(r * 0.2, -r * 0.55); g.lineTo(r * 0.55, r * 0.15); g.lineTo(-r * 0.1, r * 0.5); g.closePath(); g.fill(); });
+  // a quaver: head, stem, flag
+  cell(SHAPE.note, (r) => {
+    g.beginPath(); g.ellipse(-r * 0.22, r * 0.5, r * 0.3, r * 0.22, -0.4, 0, Math.PI * 2); g.fill();
+    g.fillRect(r * 0.0, -r * 0.8, r * 0.13, r * 1.3);
+    g.beginPath(); g.moveTo(r * 0.1, -r * 0.8); g.quadraticCurveTo(r * 0.75, -r * 0.45, r * 0.45, r * 0.05); g.quadraticCurveTo(r * 0.5, -r * 0.4, r * 0.1, -r * 0.45); g.fill();
+  });
+  // a fish: body, tail, an eye cut out
+  cell(SHAPE.fish, (r) => {
+    g.beginPath(); g.ellipse(-r * 0.12, 0, r * 0.58, r * 0.34, 0, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.moveTo(r * 0.36, 0); g.lineTo(r * 0.9, -r * 0.38); g.lineTo(r * 0.9, r * 0.38); g.closePath(); g.fill();
+    g.globalCompositeOperation = 'destination-out';
+    g.beginPath(); g.arc(-r * 0.42, -r * 0.06, r * 0.08, 0, Math.PI * 2); g.fill();
+    g.globalCompositeOperation = 'source-over';
+  });
+  // a daisy: five round petals round a hole
+  cell(SHAPE.flower, (r) => {
+    for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2 - Math.PI / 2; g.beginPath(); g.arc(Math.cos(a) * r * 0.45, Math.sin(a) * r * 0.45, r * 0.36, 0, Math.PI * 2); g.fill(); }
+    g.globalCompositeOperation = 'destination-out';
+    g.beginPath(); g.arc(0, 0, r * 0.2, 0, Math.PI * 2); g.fill();
+    g.globalCompositeOperation = 'source-over';
+  });
+  cell(SHAPE.drop, (r) => { g.beginPath(); g.moveTo(0, -r * 0.85); g.bezierCurveTo(r * 0.7, 0, r * 0.55, r * 0.75, 0, r * 0.75); g.bezierCurveTo(-r * 0.55, r * 0.75, -r * 0.7, 0, 0, -r * 0.85); g.fill(); });
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
@@ -161,6 +183,80 @@ const FRAG = `uniform sampler2D sheet; varying vec3 vColor; varying float vShape
     gl_FragColor = vec4(vColor * t.rgb, a);
   }`;
 
+const PRINT_VERT = `attribute vec4 info; varying vec2 vUv; varying vec4 vInfo; varying vec3 vCol; attribute vec3 tint;
+  void main() {
+    vUv = uv; vInfo = info; vCol = tint;
+    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+  }`;
+const PRINT_FRAG = `uniform sampler2D sheet; varying vec2 vUv; varying vec4 vInfo; varying vec3 vCol;
+  void main() {
+    float cx = mod(vInfo.x, 4.0), cy = floor(vInfo.x / 4.0);
+    vec4 t = texture2D(sheet, (vec2(cx, cy) + vec2(vUv.x, 1.0 - vUv.y)) / 4.0);
+    float a = t.a * vInfo.y;
+    if (a < 0.02) discard;
+    gl_FragColor = vec4(vCol * t.rgb * (1.0 + vInfo.z), a);
+  }`;
+const MAX_PRINTS = 96;
+
+/** Flat marks left on the floor (a herder's trail): an instanced quad per print, fading out. */
+function prints(scene, sheet) {
+  const geo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  const info = new Float32Array(MAX_PRINTS * 4);
+  const tint = new Float32Array(MAX_PRINTS * 3);
+  geo.setAttribute('info', new THREE.InstancedBufferAttribute(info, 4).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('tint', new THREE.InstancedBufferAttribute(tint, 3).setUsage(THREE.DynamicDrawUsage));
+  const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { sheet: { value: sheet } }, vertexShader: PRINT_VERT, fragmentShader: PRINT_FRAG });
+  const mesh = new THREE.InstancedMesh(geo, mat, MAX_PRINTS);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 2;
+  mesh.count = 0;
+  scene.add(mesh);
+  const list = [];
+  for (let i = 0; i < MAX_PRINTS; i++) list.push({ live: false, t: 0, life: 1, x: 0, z: 0, h: 0, s: 0.2, shape: 0, glow: 0 });
+  let cursor = 0;
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const up = new THREE.Vector3(0, 1, 0);
+  const pos = new THREE.Vector3();
+  const sc = new THREE.Vector3();
+  const c = new THREE.Color();
+  return {
+    add(x, z, h, shape, color, size, life, glow = 0) {
+      const p = list[cursor];
+      cursor = (cursor + 1) % MAX_PRINTS;
+      Object.assign(p, { live: true, t: 0, life, x, z, h, s: size, shape, glow });
+      c.set(color);
+      const i = list.indexOf(p);
+      tint[i * 3] = c.r; tint[i * 3 + 1] = c.g; tint[i * 3 + 2] = c.b;
+      geo.attributes.tint.needsUpdate = true;
+    },
+    update(dt) {
+      let n = 0;
+      for (let i = 0; i < MAX_PRINTS; i++) {
+        const p = list[i];
+        if (p.live) { p.t += dt; if (p.t >= p.life) p.live = false; }
+        const k = p.live ? p.t / p.life : 1;
+        // a print pops in, then fades
+        const grow = p.live ? Math.min(1, p.t * 10) : 0;
+        q.setFromAxisAngle(up, -p.h - Math.PI / 2);
+        pos.set(p.x, 0.022 + i * 0.00002, p.z);
+        sc.setScalar(Math.max(0.0001, p.s * (0.6 + grow * 0.4)));
+        m.compose(pos, q, sc);
+        mesh.setMatrixAt(i, m);
+        info[i * 4] = p.shape;
+        info[i * 4 + 1] = p.live ? Math.min(1, (1 - k) * 2.5) * 0.85 : 0;
+        info[i * 4 + 2] = p.glow;
+        if (p.live) n = i + 1;
+      }
+      mesh.count = n;
+      mesh.instanceMatrix.needsUpdate = true;
+      geo.attributes.info.needsUpdate = true;
+    },
+    clear() { for (const p of list) p.live = false; mesh.count = 0; },
+  };
+}
+
 /** One cloud of particles (blended or glowing). */
 function cloud(scene, sheet, additive) {
   const pos = new Float32Array(MAXP * 3);
@@ -197,6 +293,7 @@ export function createFx(scene) {
   const sheet = sheetTexture();
   const soft = cloud(scene, sheet, false);
   const glow = cloud(scene, sheet, true);
+  const marks = prints(scene, sheet);
   const c = new THREE.Color();
 
   const rings = [];
@@ -328,11 +425,28 @@ export function createFx(scene) {
       emit(x, 1.4, z, 12, { color: ['#c98a4b', '#a86a33', '#e0a55e'], shape: SHAPE.crumb, speed: 1.6, up: 3, life: 0.9, size: 0.09, spin: 8, bounce: 0.4 });
       emit(x, 1.5, z, 6, { color: '#ffd77a', shape: SHAPE.spark, glow: true, speed: 1, up: 1.5, life: 0.5, size: 0.18, gravity: 0 });
     },
-    clap(x, z) {
+    /** style: a clap item from meta/herder.js (hearts, stars, confetti...) thrown out with the shockwave */
+    clap(x, z, style = null) {
       wave(x, z, CLAP.radius, 0.38);
-      wave(x, z, CLAP.radius * 0.55, 0.26, '#ffd77a');
+      wave(x, z, CLAP.radius * 0.55, 0.26, style?.colors?.[0] ?? '#ffd77a');
       emit(x, 1.15, z, 10, { color: '#fff3df', shape: SHAPE.streak, glow: true, speed: 5, up: 0, gravity: 0, life: 0.22, size: 0.35, drag: 6 });
       emit(x, 0.08, z, 10, { color: '#efe2c8', shape: SHAPE.puff, speed: 3.2, up: 0.3, gravity: 0, drag: 4, life: 0.5, size: 0.4, grow: 1.5 });
+      if (style?.fx && SHAPE[style.fx] != null) {
+        const bubbles = style.fx === 'ring';
+        emit(x, 1.1, z, 16, {
+          color: style.colors, shape: SHAPE[style.fx], speed: bubbles ? 2.2 : 4.2, up: bubbles ? 1.2 : 2.6, life: bubbles ? 1.2 : 0.9,
+          size: bubbles ? 0.2 : 0.17, gravity: bubbles ? -0.6 : 5, drag: bubbles ? 2.2 : 1.6, spin: style.fx === 'square' ? 12 : 3, bounce: 0.2,
+        });
+      }
+    },
+    /** one mark of a herder's trail where a foot came down */
+    print(x, z, h, style, side = 1) {
+      if (!style?.fx || SHAPE[style.fx] == null) return;
+      const ox = Math.cos(h + Math.PI / 2) * 0.13 * side;
+      const oz = Math.sin(h + Math.PI / 2) * 0.13 * side;
+      const col = style.colors[Math.floor(Math.random() * style.colors.length)];
+      marks.add(x + ox, z + oz, h + (style.fx === 'paw' ? 0 : (Math.random() - 0.5) * 0.8), SHAPE[style.fx], col, style.fx === 'dot' ? 0.16 : 0.22, reduced ? 1.2 : 2.6, style.glow ? 0.6 : 0);
+      if (style.glow && !reduced) emit(x + ox, 0.1, z + oz, 1, { color: col, shape: SHAPE.spark, glow: true, speed: 0.2, up: 0.6, life: 0.5, size: 0.14, gravity: 0, drag: 2 });
     },
     /** soft dust kicked up from the floor */
     dust(x, z, n = 6, color = '#efe2c8') { emit(x, 0.08, z, n, { color, shape: SHAPE.puff, speed: 1.2, up: 0.5, life: 0.5, size: 0.3, gravity: 0, drag: 3, grow: 1.2 }); },
@@ -385,6 +499,7 @@ export function createFx(scene) {
       }
       stepCloud(soft, dt);
       stepCloud(glow, dt);
+      marks.update(dt);
       if (feet.visible) feet.material.opacity = 0.55 + Math.sin(t * 5) * 0.35;
     },
     /** particle size follows the camera's zoom: pixels per room unit at the focus */
@@ -395,6 +510,7 @@ export function createFx(scene) {
     },
     clear() {
       for (const cl of [soft, glow]) for (const p of cl.parts) p.live = false;
+      marks.clear();
       for (const r of rings) r.m.visible = false;
       for (const r of shock) r.m.visible = false;
       feet.visible = false;

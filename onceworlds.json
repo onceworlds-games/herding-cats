@@ -1,7 +1,7 @@
 {
   "slug": "herding-cats",
   "name": "Herding Cats",
-  "description": "Get every cat into the carrier before the vet closes. Good luck.",
+  "description": "Get every cat into the carrier before the vet closes. Fifteen appointments with three stars each, a new Daily every day, rare coats for the Cat-alog and hats, carriers and claps to earn. Alone or with friends.",
   "dir": "dist",
   "productionBranch": "main",
   "genre": "Party",
@@ -130,6 +130,50 @@
       "name": "Cat Lady",
       "description": "Box 25 cats in one shift.",
       "icon": "store/badge-cat-lady.png"
+    },
+    {
+      "id": "cat-train",
+      "name": "Cat Train",
+      "description": "Box four cats through the door in one go.",
+      "icon": "store/badge-cat-train.png"
+    },
+    {
+      "id": "bank-shot",
+      "name": "Bank Shot",
+      "description": "Bounce a clapped cat off a wall into the carrier.",
+      "icon": "store/badge-bank-shot.png"
+    },
+    {
+      "id": "rare-coat",
+      "name": "Rare Coat",
+      "description": "Box a cat with a rare coat.",
+      "icon": "store/badge-rare-coat.png"
+    },
+    {
+      "id": "cat-alog",
+      "name": "Cat-alog",
+      "description": "Fill every page of the Cat-alog.",
+      "icon": "store/badge-cat-alog.png"
+    },
+    {
+      "id": "week-of-dailies",
+      "name": "Week of Dailies",
+      "description": "Keep the Daily seven days in a row.",
+      "icon": "store/badge-week-of-dailies.png"
+    },
+    {
+      "id": "herder-10",
+      "name": "Herder Level 10",
+      "description": "Reach herder level 10.",
+      "icon": "store/badge-herder-10.png"
     }
-  ]
+  ],
+  "data": {
+    "dailyHerders": {
+      "type": "counter",
+      "max": 1000000,
+      "add": 1,
+      "reset": "daily"
+    }
+  }
 }

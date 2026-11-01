@@ -3,6 +3,7 @@
 import { createGame, addPerson, step, treats, clap } from './game.js';
 import { createBrain, think } from './brain.js';
 import { levelSetup, roundSetup, catladySetup } from './levels.js';
+import { dailySetup } from './daily.js';
 import { STEP, ROUND, CATLADY } from './tuning.js';
 
 export function runLevel(n, { skill = 1, style = 'shepherd', seed = 1, limit = null } = {}) {
@@ -58,4 +59,20 @@ export function runCatLady({ skill = 0.6, seed = 1, limit = 900 } = {}) {
     step(g, STEP);
   }
   return { boxed: g.boxed, time: g.elapsed, g };
+}
+
+export function runDaily(day, { skill = 1, seed = 1, limit = null } = {}) {
+  const D = dailySetup(day);
+  const g = createGame({ room: D.room, mode: 'level', cats: D.cats, seed, clock: limit ?? D.closes, twists: D.twists });
+  const p = addPerson(g, { id: 'me' });
+  const b = createBrain({ skill, seed: seed * 7 + 3 });
+  g.started = true;
+  let guard = 0;
+  while (!g.over && guard++ < 30 * 400) {
+    const act = think(g, p, b, STEP);
+    if (act.treats) treats(g, p);
+    if (act.clap) clap(g, p);
+    step(g, STEP);
+  }
+  return { day, D, allIn: !!g.result?.allIn, time: g.result?.time ?? g.elapsed, boxed: g.boxed, total: g.total, g };
 }

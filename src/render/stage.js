@@ -229,6 +229,20 @@ export function createStage(canvas, { poster = false } = {}) {
     applyCamera();
   };
 
+  /**
+   * Ease the camera to (x, z), `span` across the short side, that point `sx` of the screen's width off centre and `sy` of
+   * its height above centre (-0.5 to 0.5), to leave room for a panel beside or below it.
+   */
+  st.aim = (x, z, span, sx = 0, sy = 0) => {
+    const across = span * Math.max(1, st.w / st.h);
+    const down = (span * Math.max(1, st.h / st.w)) / Math.sin(PITCH);
+    st.goalTarget.set(
+      x - Math.cos(YAW) * sx * across + Math.sin(YAW) * sy * down, 0,
+      z + Math.sin(YAW) * sx * across + Math.cos(YAW) * sy * down,
+    );
+    st.goalSpan = span;
+  };
+
   st.shake = (amount) => {
     if (st.reducedMotion) return;
     st.trauma = Math.min(1, st.trauma + amount);

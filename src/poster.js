@@ -6,16 +6,20 @@ import { freeSpot } from './sim/world.js';
 import { createView } from './render/view.js';
 import { createGame, addPerson } from './sim/game.js';
 import { ROOMS, arena } from './sim/rooms.js';
+import { levelSetup, catladySetup } from './sim/levels.js';
 import { S, SEATS, TYPES } from './sim/tuning.js';
-import { symbolSvg } from './ui/symbols.js';
+import { symbolSvg, PATHS } from './ui/symbols.js';
+import { icon } from './ui/icons.js';
 import { carrierSvg, rosette, star } from './ui/ui.js';
 
 const BADGES = {
   'first-cat': ['paw', '#f6b941'], 'full-carrier': ['carrier', '#4f9a5e'], 'under-par': ['clock', '#3f7fcb'],
   'boss-move': ['crown', '#8c5bc4'], zoomies: ['bolt', '#e5493a'], 'cat-cafe': ['heart', '#e57fa6'],
   'fifteen-appointments': ['star', '#2b1d1c'], 'crazy-cat-person': ['yarn', '#d9a066'], 'best-in-show': ['rosette', '#fff3df'],
-  'cat-lady': ['cat', '#3f8a86'],
+  'cat-lady': ['cat', '#3f8a86'], 'cat-train': ['chain', '#e57f3a'], 'bank-shot': ['bank', '#6aa7d8'], 'rare-coat': ['spark', '#b9a3ec'],
+  'cat-alog': ['catalog', '#9fd08f'], 'week-of-dailies': ['flame', '#5a2f2a'], 'herder-10': ['xp', '#3f5fa0'],
 };
+const ICON_FILL = { flame: '#ff8a3d', xp: '#f6b941', spark: '#fff3df' };
 
 function seeded(seed) {
   let a = seed >>> 0;
@@ -42,8 +46,9 @@ function overlay(html, css = '') {
 
 export async function renderPoster(name) {
   Math.random = seeded(20261101);
-  const W = name === 'icon' ? 512 : name.startsWith('badge-') ? 256 : 1280;
-  const H = name === 'icon' ? 512 : name.startsWith('badge-') ? 256 : 720;
+  const card = name.startsWith('card-');
+  const W = name === 'icon' ? 512 : name.startsWith('badge-') ? 256 : card ? 480 : 1280;
+  const H = name === 'icon' ? 512 : name.startsWith('badge-') ? 256 : card ? 300 : 720;
   document.documentElement.style.cssText = `width:${W}px;height:${H}px`;
   document.body.style.cssText = `width:${W}px;height:${H}px`;
   try {
@@ -69,8 +74,8 @@ export async function renderPoster(name) {
   stage.setQuality(q.get('q') ?? 'high', 1);
   stage.resize(W, H);
   const view = createView(stage);
-  const scene = SCENES[name] ?? SCENES.cover;
-  const plan = scene(view, stage);
+  const scene = SCENES[name] ?? (card ? SCENES.card : SCENES.cover);
+  const plan = scene(view, stage, name);
   // let poses, headings and tails settle, then draw once
   let t = 0;
   for (let i = 0; i < 90; i++) {
@@ -87,7 +92,9 @@ export async function renderPoster(name) {
 
 function badge(id, size) {
   const [sym, color] = BADGES[id] ?? ['paw', '#f6b941'];
-  const inner = sym === 'carrier' ? carrierSvg('#e5493a') : sym === 'rosette' ? rosette() : symbolSvg(sym, sym === 'star' ? '#f6b941' : '#fff3df', '#2b1d1c', 120);
+  const inner = sym === 'carrier' ? carrierSvg('#e5493a') : sym === 'rosette' ? rosette()
+    : PATHS[sym] ? symbolSvg(sym, sym === 'star' ? '#f6b941' : '#fff3df', '#2b1d1c', 120)
+      : icon(sym, { fill: ICON_FILL[sym] ?? '#fff3df', size: 120 });
   overlay(`<div style="position:absolute;left:14px;top:14px;width:${size - 28}px;height:${size - 28}px;border-radius:50%;background:${color};border:10px solid #2b1d1c;box-shadow:inset 0 -14px 0 rgba(43,29,28,0.18);display:flex;align-items:center;justify-content:center">
     <div style="width:132px;height:132px;display:flex;align-items:center;justify-content:center">${inner}</div></div>`, 'background:transparent');
   const svg = document.querySelector('body > div svg');
@@ -113,6 +120,24 @@ function room(roomDef, opts = {}) {
 }
 
 const SCENES = {
+  // a room card for the book (?poster=card-<n> or card-catlady): the whole room with its cats where they start
+  card(view, stage, name) {
+    const id = name.slice(5);
+    const setup = id === 'catlady' ? catladySetup() : levelSetup(Number(id)) ?? levelSetup(1);
+    const g = createGame({ room: setup.room, mode: 'level', cats: setup.cats, seed: 5, clock: 120, twists: setup.level?.twists });
+    if (id === 'catlady') {
+      const rng = { s: 23, next() { this.s = (this.s * 16807) % 2147483647; return this.s / 2147483647; } };
+      const coats = ['ginger', 'tuxedo', 'calico', 'grey', 'tortie', 'black', 'white', 'siamese', 'cow', 'silver'];
+      const placed = [];
+      for (let i = 0; i < 10; i++) {
+        const p = freeSpot(g.world, rng, { avoid: placed, gap: 1.3 });
+        placed.push(p);
+        cat(g, i % 4 === 3 ? 'kitten' : 'moggy', coats[i], p.x, p.z, i % 3 ? S.idle : S.walk, { h: rng.next() * 6.28, sp: i % 3 ? 0 : 1 });
+      }
+    }
+    view.show(g, { people: [], me: -1, total: 'solo' });
+    return { camera() { stage.frame(null, { snap: true }); stage.update(0); } };
+  },
   // a look at one room (?poster=room&room=studio&x=6&z=4&span=9): a few cats about, the person by the door
   room(view, stage) {
     const q = new URLSearchParams(location.search);

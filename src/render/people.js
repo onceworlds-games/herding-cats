@@ -15,6 +15,7 @@ export const PERSON_H = 1.62; // how tall a person stands, in room units (a cat 
 
 const RING = new THREE.RingGeometry(0.42, 0.52, 40);
 const DISC = new THREE.CircleGeometry(0.36, 28);
+const BOX_GEO = new THREE.BoxGeometry(1, 1, 1);
 
 const mats = new Map();
 function mat(hex, rough = 0.8, extra = null) {
@@ -49,7 +50,40 @@ const HAT_GEO = {
   crown: new THREE.CylinderGeometry(0.42, 0.38, 0.32, 8, 1, true),
   bucket: new THREE.CylinderGeometry(0.4, 0.5, 0.36, 18),
   bucketBrim: new THREE.CylinderGeometry(0.72, 0.72, 0.04, 22),
+  cone: new THREE.ConeGeometry(0.3, 0.78, 20, 1, true),
+  ringThin: new THREE.TorusGeometry(1, 0.035, 6, 24),
+  puff: new THREE.SphereGeometry(0.5, 16, 12),
+  tall: new THREE.CylinderGeometry(0.36, 0.38, 0.62, 22),
+  band: new THREE.CylinderGeometry(0.385, 0.385, 0.1, 22, 1, true),
+  blade: new THREE.BoxGeometry(0.62, 0.02, 0.12),
+  stem: new THREE.CylinderGeometry(0.03, 0.03, 0.16, 8),
+  daisy: new THREE.CircleGeometry(0.14, 12),
 };
+const bent = (geo, f) => {
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) f(pos, i);
+  geo.computeVertexNormals();
+  return geo;
+};
+// a cowboy brim curls up at the sides; a witch's cone droops at the tip
+HAT_GEO.cowBrim = bent(new THREE.CylinderGeometry(0.86, 0.86, 0.04, 32, 1), (p, i) => { const x = p.getX(i); p.setY(i, p.getY(i) + 0.22 * (x / 0.86) ** 4); });
+HAT_GEO.cowCrown = bent(new THREE.CylinderGeometry(0.3, 0.4, 0.44, 22, 4), (p, i) => { const y = p.getY(i); const z = p.getZ(i); if (y > 0.1) p.setY(i, y - 0.08 * Math.max(0, 1 - Math.abs(z) * 3)); });
+HAT_GEO.witch = bent(new THREE.ConeGeometry(0.42, 1.05, 22, 8), (p, i) => { const k = (p.getY(i) + 0.525) / 1.05; p.setX(i, p.getX(i) - 0.32 * k ** 2.5); p.setY(i, p.getY(i) - 0.12 * k ** 3); });
+HAT_GEO.witchBrim = new THREE.CylinderGeometry(0.82, 0.82, 0.03, 32);
+let daisyTex = null;
+function daisyTexture() {
+  if (daisyTex) return daisyTex;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#fffaf0';
+  for (let i = 0; i < 9; i++) { g.save(); g.translate(32, 32); g.rotate((i / 9) * Math.PI * 2); g.beginPath(); g.ellipse(0, -17, 6, 13, 0, 0, Math.PI * 2); g.fill(); g.restore(); }
+  g.fillStyle = '#f6b941';
+  g.beginPath(); g.arc(32, 32, 9, 0, Math.PI * 2); g.fill();
+  daisyTex = new THREE.CanvasTexture(cv);
+  daisyTex.colorSpace = THREE.SRGBColorSpace;
+  return daisyTex;
+}
 
 /** A hat in head units (the head is about one across), sitting on the crown of the head. */
 export function makeHat(kind, color = '#e5493a') {
@@ -86,7 +120,7 @@ export function makeHat(kind, color = '#e5493a') {
       g.add(inner);
     }
   } else if (kind === 'crown') {
-    const gold = mat('#f6b941', 0.3, { metalness: 0.8, side: THREE.DoubleSide });
+    const gold = mat('#f6b941', 0.3, { metalness: 0.35, emissive: '#6a4300', emissiveIntensity: 0.5, side: THREE.DoubleSide });
     const c = new THREE.Mesh(HAT_GEO.crown, gold);
     c.position.y = 0.16;
     g.add(c);
@@ -103,6 +137,100 @@ export function makeHat(kind, color = '#e5493a') {
     const b = new THREE.Mesh(HAT_GEO.bucketBrim, m);
     b.position.y = -0.05;
     g.add(c, b);
+  } else if (kind === 'party') {
+    const cone = new THREE.Mesh(HAT_GEO.cone, mat(color, 0.6, { side: THREE.DoubleSide }));
+    cone.position.y = 0.36;
+    const cream = mat('#fff3df', 0.7);
+    for (const [y, r] of [[0.16, 0.25], [0.4, 0.15]]) {
+      const st = new THREE.Mesh(HAT_GEO.ringThin, cream);
+      st.rotation.x = Math.PI / 2;
+      st.position.y = y;
+      st.scale.setScalar(r);
+      g.add(st);
+    }
+    const pom = new THREE.Mesh(HAT_GEO.bobble, mat('#f6b941', 0.8));
+    pom.position.y = 0.78;
+    g.rotation.z = -0.18;
+    g.add(cone, pom);
+  } else if (kind === 'chef') {
+    const white = mat(color, 0.9);
+    const band = new THREE.Mesh(HAT_GEO.tall, white);
+    band.scale.set(1.2, 0.42, 1.2);
+    band.position.y = 0.1;
+    const puff = new THREE.Mesh(HAT_GEO.puff, white);
+    puff.scale.set(1.1, 0.75, 1.1);
+    puff.position.y = 0.5;
+    g.add(band, puff);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.4;
+      const lump = new THREE.Mesh(HAT_GEO.puff, white);
+      lump.scale.setScalar(0.42);
+      lump.position.set(Math.cos(a) * 0.3, 0.62, Math.sin(a) * 0.3);
+      g.add(lump);
+    }
+  } else if (kind === 'flower') {
+    const vine = new THREE.Mesh(HAT_GEO.ringThin, mat('#5f9a4e', 0.8));
+    vine.rotation.x = Math.PI / 2;
+    vine.scale.set(0.5, 0.5, 1.6);
+    vine.position.y = 0.04;
+    g.add(vine);
+    const dm = new THREE.MeshStandardMaterial({ map: daisyTexture(), transparent: true, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.9 });
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const d = new THREE.Mesh(HAT_GEO.daisy, dm);
+      d.position.set(Math.cos(a) * 0.5, 0.1, Math.sin(a) * 0.5);
+      d.lookAt(Math.cos(a) * 2, 0.9, Math.sin(a) * 2);
+      d.scale.setScalar(i % 2 ? 0.8 : 1.05);
+      g.add(d);
+    }
+  } else if (kind === 'cowboy') {
+    const crown = new THREE.Mesh(HAT_GEO.cowCrown, m);
+    crown.position.y = 0.24;
+    const brim = new THREE.Mesh(HAT_GEO.cowBrim, m);
+    brim.position.y = 0.03;
+    const band = new THREE.Mesh(HAT_GEO.band, mat('#4a2f1c', 0.7));
+    band.scale.set(0.95, 0.9, 0.95);
+    band.position.y = 0.1;
+    g.add(crown, brim, band);
+  } else if (kind === 'propeller') {
+    const c = new THREE.Mesh(HAT_GEO.cap, m);
+    c.scale.set(1.08, 0.8, 1.08);
+    const brim = new THREE.Mesh(HAT_GEO.brim, mat('#3f7fcb', 0.7));
+    brim.position.set(0, 0.02, 0.32);
+    brim.scale.set(0.9, 1, 1.15);
+    const stem = new THREE.Mesh(HAT_GEO.stem, mat('#2b1d1c', 0.5));
+    stem.position.y = 0.46;
+    const spin = new THREE.Group();
+    spin.position.y = 0.55;
+    const b1 = new THREE.Mesh(HAT_GEO.blade, mat('#e5493a', 0.5));
+    const b2 = new THREE.Mesh(HAT_GEO.blade, mat('#3f7fcb', 0.5));
+    b1.position.x = 0.3;
+    b2.position.x = -0.3;
+    b1.rotation.x = 0.35;
+    b2.rotation.x = -0.35;
+    spin.add(b1, b2);
+    g.add(c, brim, stem, spin);
+    g.userData.spin = spin;
+  } else if (kind === 'witch') {
+    const cone = new THREE.Mesh(HAT_GEO.witch, m);
+    cone.position.y = 0.52;
+    const brim = new THREE.Mesh(HAT_GEO.witchBrim, m);
+    const band = new THREE.Mesh(HAT_GEO.band, mat('#8c5bc4', 0.6));
+    band.scale.set(1.05, 0.8, 1.05);
+    band.position.y = 0.06;
+    const buckle = new THREE.Mesh(BOX_GEO, mat('#f6b941', 0.35, { metalness: 0.6 }));
+    buckle.scale.set(0.14, 0.1, 0.03);
+    buckle.position.set(0, 0.06, 0.41);
+    g.add(cone, brim, band, buckle);
+  } else if (kind === 'top') {
+    const tall = new THREE.Mesh(HAT_GEO.tall, m);
+    tall.position.y = 0.32;
+    const brim = new THREE.Mesh(HAT_GEO.bucketBrim, m);
+    brim.scale.set(0.82, 1, 0.82);
+    brim.position.y = 0.02;
+    const band = new THREE.Mesh(HAT_GEO.band, mat('#e5493a', 0.6));
+    band.position.y = 0.1;
+    g.add(tall, brim, band);
   }
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return g;
@@ -236,6 +364,8 @@ export function makePerson(avatar, seed = 1, extra = {}) {
       }
       st.shake = Math.max(0, st.shake - dt);
       st.clap = Math.max(0, st.clap - dt);
+      const prop = bones.hat?.userData.spin;
+      if (prop && !reducedMotion) prop.rotation.y += dt * (5 + Math.min(6, p.sp ?? 0) * 3);
       root.position.set(p.x, 0, p.z);
       if (st.h == null) st.h = p.h ?? 0;
       let dh = (p.h ?? 0) - st.h;

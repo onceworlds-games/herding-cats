@@ -8,6 +8,7 @@ import { makeRng, hash } from './rng.js';
 import { buildWorld, resolve, freeAhead, normalNear, nearestHide, freeSpot, onMat, findPath, overlaps } from './world.js';
 import { threat, shotStep, knockable, touchGap, hopSpot, doorFor } from './motion.js';
 import { sunPatches, inSun } from './sun.js';
+import { rollCoat } from './coats.js';
 
 const TAU = Math.PI * 2;
 const angTo = (a, b) => ((((b - a) % TAU) + TAU + Math.PI) % TAU) - Math.PI;
@@ -39,7 +40,7 @@ export function createGame(opts) {
     total: 0, boxed: 0, spawned: 0, spawnT: 0, bonus: CATLADY.bonus,
     stats: {
       zoomies: false, bossFirst: null, firstBoxed: null, bestCombo: 0, combos: 0, banks: 0, chains: 0, knocks: 0, claps: 0,
-      treats: 0, crashes: 0, laserIns: 0, rides: 0, deliveries: 0, loafShot: false, shots: 0,
+      treats: 0, crashes: 0, laserIns: 0, rides: 0, deliveries: 0, loafShot: false, shots: 0, hides: 0, comboCats: 0, shotIns: 0,
     },
   };
   const tw = opts.twists ?? {};
@@ -66,7 +67,8 @@ export function addCat(g, spec) {
     z = p.z;
   }
   const c = {
-    id, type, coat: spec.coat ?? 'ginger', gang: spec.gang ?? -1, size: T.size,
+    // now and then a rarer coat than the level asked for (its own dice, so nothing else about the cat changes)
+    id, type, coat: spec.fixedCoat ? spec.coat ?? 'ginger' : rollCoat(makeRng(hash(`${g.seed}:${id}:coat`)), spec.coat ?? 'ginger'), gang: spec.gang ?? -1, size: T.size,
     x, z, h: fin(spec.h, r.range(-Math.PI, Math.PI)), sp: 0, vx: 0, vz: 0, y: 0,
     st: type === 'loaf' ? S.sleep : S.idle, tt: r.range(0.5, 3), a: 0, b: 0,
     tell: T.tell[0] + (T.tell[1] - T.tell[0]) * r.next(),
@@ -465,6 +467,7 @@ function startHide(g, c) {
     return;
   }
   setState(c, S.runhide, 3.5);
+  if (g.started) g.stats.hides++;
   c.a = hide.index;
   c.hop = hide;
   emit(g, 'scared', { c: c.id });
@@ -555,7 +558,8 @@ function enterCarrier(g, c, k, how = null) {
   if (how === 'laser') g.stats.laserIns++;
   if (how === 'ride') g.stats.rides++;
   if (how === 'box') g.stats.deliveries++;
-  if (n >= 2) g.stats.combos++;
+  if (n >= 2) { g.stats.combos++; g.stats.comboCats++; }
+  if (shot && !wasSprint) g.stats.shotIns++;
   g.stats.bestCombo = Math.max(g.stats.bestCombo, n);
   c.by = c.credit;
   g.boxed++;

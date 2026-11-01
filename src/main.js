@@ -34,10 +34,21 @@ import { soonIn } from './sim/motion.js';
 import { createSession, makeRoundData, advance as advanceSession, stepAlpha } from './net/session.js';
 import * as sfx from './audio.js';
 import * as save from './save.js';
-import { $ui, el, esc, button, star, stars, carrierSvg, rosette, clockFace, fmt, fmtTime, bookCards, stampAt } from './ui/ui.js';
+import { $ui, el, esc, button, star, stars, carrierSvg, rosette, clockFace, fmt, fmtTime, stampAt } from './ui/ui.js';
 import { symbolSvg } from './ui/symbols.js';
+import { icon } from './ui/icons.js';
+import { herderCard, goalsBox, dailyTicket, bookGrid, wardrobePanel, catalogPanel, challengeChip, catPicture, itemPicture, sockets } from './ui/screens.js';
+import { resultPanel } from './ui/results.js';
+import { dailySetup } from './sim/daily.js';
+import { liveState, CHALLENGES } from './meta/challenges.js';
+import { ITEM, itemAt, LEVEL_ITEMS } from './meta/herder.js';
+import { PAGES, pageState } from './meta/catalog.js';
+import { STAR } from './meta/progress.js';
+import { COAT_INFO } from './sim/coats.js';
 
-if (POSTER === 'kit') {
+if (POSTER?.startsWith('sheet')) {
+  import('./sheets.js').then((m) => m.runSheet(params)).catch((e) => { console.error(e); document.body.dataset.ready = '1'; });
+} else if (POSTER === 'kit') {
   import('./studio.js').then((m) => m.runKit(params));
 } else if (POSTER === 'studio') {
   import('./studio.js').then((m) => m.runStudio(params)).catch((e) => { console.error(e); document.body.dataset.ready = '1'; });
@@ -383,7 +394,26 @@ async function boot() {
     setControls(name === 'solo' || (name === 'match' && !!app.net?.session?.me));
   }
 
+  // ------------------------------------------------------------------ what I wear
+  function myWear() {
+    const w = save.wearing();
+    return { hat: ITEM[w.hat], carrier: ITEM[w.carrier], clap: ITEM[w.clap], trail: ITEM[w.trail] };
+  }
+  function syncLooks() {
+    const w = myWear();
+    if (app.net) app.net.looks = [w.hat.n, w.clap.n, w.trail.n];
+  }
+  /** What a player in a match wears: mine from the save, others' from their presence, bots plain. */
+  function wearOf(id) {
+    if (!id || id.startsWith('bot:')) return null;
+    if (id === myId() || id === 'me') return myWear();
+    const lk = app.net?.looksOf?.(id);
+    if (!lk) return null;
+    return { hat: itemAt('hat', lk[0]), clap: itemAt('clap', lk[1]), trail: itemAt('trail', lk[2]) };
+  }
+
   // ---------- title: the café in attract mode, the wordmark, one Play button
+  const letters = (word, from) => [...word].map((ch, i) => `<span style="--i:${from + i}">${esc(ch)}</span>`).join('');
   function showTitle() {
     clearUI();
     setScreen('title');
@@ -391,15 +421,18 @@ async function boot() {
     startAttract();
     const root = el('section', '', '');
     root.id = 'title';
-    root.innerHTML = `<div class="mark ink"><h1><span>Herding</span><span>Cats</span></h1></div>`;
+    root.innerHTML = `<div class="mark ink"><h1><span class="w">${letters('Herding', 0)}</span><span class="w">${letters('Cats', 7)}</span></h1></div>`;
     const play = button('Play', { cls: 'red big play live', key: 'Enter', onClick: () => onPlay() });
     root.appendChild(play);
-    const total = save.totalStars();
-    if (total > 0 || save.progress.catLady > 0) {
-      const st = el('div', 'stats num ink');
-      st.innerHTML = `<span>${star(true, 30)}${total}/45</span>${save.progress.catLady > 0 ? `<span>${carrierSvg('#e5493a')}<b style="font-weight:800">${save.progress.catLady}</b></span>` : ''}`;
-      st.querySelectorAll('svg').forEach((s) => { s.style.width = '34px'; s.style.height = '30px'; });
-      root.appendChild(st);
+    const h = save.herder();
+    if (save.progress.xp > 0) {
+      const strip = el('div', 'strip');
+      strip.appendChild(herderCard(h, { compact: true }));
+      const st = el('div', 'chips');
+      const streak = save.streak();
+      st.innerHTML = `<span class="chipx">${star(true, 26)}<b class="num">${save.totalStars()}</b></span>${streak > 0 ? `<span class="chipx">${icon('flame', { fill: '#ff8a3d', size: 26 })}<b class="num">${streak}</b></span>` : ''}`;
+      strip.appendChild(st);
+      root.appendChild(strip);
     }
     ui.appendChild(root);
     app.primary = () => onPlay();
@@ -444,7 +477,7 @@ async function boot() {
     const set = n.settings();
     const host = n.isHost();
     const friends = n.friendsWaiting();
-    const key = `${set.game}|${set.rounds}|${host}|${friends}|${save.totalStars()}|${save.progress.catLady}|${save.catLadyOpen()}`;
+    const key = `${set.game}|${set.rounds}|${host}|${friends}|${save.totalStars()}|${save.progress.catLady}|${save.catLadyOpen()}|${save.progress.xp}|${save.streak()}|${app.herders ?? ''}`;
     if (!force && key === L.key) return;
     L.key = key;
     const seg = (id, opts, cur) => {
@@ -465,50 +498,249 @@ async function boot() {
     r2.appendChild(seg('rounds', [1, 3, 5].map((v) => ({ v, label: String(v), num: true })), Number(set.rounds ?? 3)));
     L.board.append(r1, r2);
     L.tickets.innerHTML = '';
-    const t1 = el('button', 'ticket live');
-    t1.type = 'button';
+    L.tickets.appendChild(herderCard(save.herder(), { compact: true, onClick: friends ? null : () => { sfx.tap(); showWardrobe(); } }));
     const first = !save.levelDone(1) && !friends;
-    t1.innerHTML = `<span class="name">Appointments</span>${first ? '<span class="sub flag">Start here</span>' : `<span class="sub">${friends ? 'Friends are here' : 'Solo, 15 rooms'}</span>`}<span class="val">${star(true, 30)}${save.totalStars()}</span>`;
-    if (friends) t1.disabled = true;
-    else t1.addEventListener('click', () => { sfx.tap(); showBook(); });
+    const t1 = soloTicket({
+      name: 'Appointments', pic: 'ui/rooms/1.jpg', sub: first ? 'Start here' : friends ? 'Friends are here' : null, flag: first,
+      val: `${star(true, 26)}<b class="num">${save.totalStars()}</b>`, off: friends, onClick: () => showBook(),
+    });
+    const d = dailySetup(save.today());
+    const dOpen = save.dailyOpen();
+    const t2 = soloTicket({
+      name: 'Daily', pic: `ui/rooms/${LEVELS.find((x) => x.room === d.roomId)?.n ?? 1}.jpg`, sub: dOpen ? (friends ? 'Friends are here' : d.name) : 'After appointment 3',
+      val: `${icon('flame', { fill: save.streak() > 0 ? '#ff8a3d' : '#8a7570', size: 26 })}<b class="num">${save.streak()}</b>`, off: friends || !dOpen, locked: !dOpen, onClick: () => startDaily(),
+    });
     const open = save.catLadyOpen();
-    const t2 = el('button', `ticket live${open ? ' gold' : ' locked'}`);
-    t2.type = 'button';
-    t2.innerHTML = open
-      ? `<span class="name">Cat Lady</span><span class="sub">${friends ? 'Friends are here' : 'Endless shift'}</span><span class="val">${carrierSvg('#e5493a')}${save.progress.catLady}</span>`
-      : `<span class="name">Cat Lady</span><span class="sub">After appointment 5</span><span class="val">${symbolSvg('lock', '#2b1d1c', '#2b1d1c', 28)}</span>`;
-    t2.querySelectorAll('.val svg:not(.sym)').forEach((s) => { s.style.width = '40px'; s.style.height = '34px'; });
-    if (!open || friends) t2.disabled = true;
-    else t2.addEventListener('click', () => { sfx.tap(); startCatLady(); });
-    L.tickets.append(t1, t2);
+    const t3 = soloTicket({
+      name: 'Cat Lady', pic: 'ui/rooms/catlady.jpg', sub: open ? (friends ? 'Friends are here' : 'Endless shift') : 'After appointment 5',
+      val: open ? `${carrierSvg('#e5493a')}<b class="num">${save.progress.catLady}</b>` : icon('lock', { size: 26 }), off: friends || !open, locked: !open, onClick: () => startCatLady(),
+    });
+    L.tickets.append(t1, t2, t3);
   }
 
-  // ---------- the Appointment Book
+  /** A solo ticket: a picture of the room, a name, one number. */
+  function soloTicket({ name, pic, sub = null, flag = false, val = '', off = false, locked = false, onClick }) {
+    const t = el('button', `ticket live${locked ? ' locked' : ''}`);
+    t.type = 'button';
+    t.innerHTML = `<span class="tp" style="background-image:url(${pic})"></span><span class="name${sub ? '' : ' solo'}"></span>${sub ? `<span class="sub${flag ? ' flag' : ''}"></span>` : ''}<span class="val">${val}</span>`;
+    t.querySelector('.name').textContent = name;
+    if (sub) t.querySelector('.sub').textContent = sub;
+    t.querySelectorAll('.val svg:not(.ico)').forEach((x) => { x.style.width = '34px'; x.style.height = '30px'; });
+    if (off) t.disabled = true;
+    else t.addEventListener('click', (e) => { e.stopPropagation(); sfx.tap(); onClick(); });
+    return t;
+  }
+
+  // ---------- the Appointment Book: the herder, today's goals, the Daily, Cat Lady and fifteen rooms
   function showBook() {
     if (app.net?.friendsWaiting()) { showLobby(); return; }
     clearUI();
     setScreen('book');
     hideLobbyStrip(true);
-    if (!app.scene || (app.scene !== 'waiting' && app.scene !== 'attract')) startAttract();
+    if (!app.scene || (app.scene !== 'waiting' && app.scene !== 'attract')) { leaveScene(); startAttract(); }
     const root = el('section');
     root.id = 'book';
     const head = el('header');
     head.innerHTML = `<h2 class="ink">Appointments</h2><span class="total num ink">${star(true, 30)}${save.totalStars()}/45</span>`;
-    const back = button('Back', { cls: 'live', key: 'Esc', onClick: () => goHome() });
-    head.appendChild(back);
-    const grid = el('div', 'grid live');
-    grid.appendChild(bookCards(save.progress, { onPick: (n) => { sfx.tap(); startLevel(n); } }));
-    root.append(head, grid);
+    head.appendChild(button('Back', { cls: 'live', key: 'Esc', onClick: () => goHome() }));
+    const body = el('div', 'body live');
+    const side = el('aside', 'side');
+    side.appendChild(herderCard(save.herder(), { onClick: () => { sfx.tap(); showWardrobe(); } }));
+    side.appendChild(goalsBox(save.goals()));
+    const d = dailySetup(save.today());
+    const rec = save.progress.daily.day === d.day ? save.progress.daily : null;
+    side.appendChild(dailyTicket(d, rec, save.streak(), { onClick: () => { sfx.tap(); startDaily(); }, herders: app.herders, locked: !save.dailyOpen() }));
+    const open = save.catLadyOpen();
+    side.appendChild(soloTicket({
+      name: 'Cat Lady', pic: 'ui/rooms/catlady.jpg', sub: open ? 'Endless shift' : 'After appointment 5',
+      val: open ? `${carrierSvg('#e5493a')}<b class="num">${save.progress.catLady}</b>` : icon('lock', { size: 26 }), off: !open, locked: !open, onClick: () => startCatLady(),
+    }));
+    const more = el('div', 'more');
+    const fresh = save.progress.fresh.length > 0;
+    more.append(
+      button('Wardrobe', { cls: `live${fresh ? ' dot' : ''}`, onClick: () => { sfx.tap(); showWardrobe(); } }),
+      button('Cat-alog', { cls: 'live', onClick: () => { sfx.tap(); showCatalog(); } }),
+    );
+    more.querySelector('.btn').insertAdjacentHTML('afterbegin', icon('hanger', { size: 24 }));
+    more.querySelectorAll('.btn')[1].insertAdjacentHTML('afterbegin', icon('catalog', { size: 24 }));
+    side.appendChild(more);
+    const grid = el('div', 'grid');
+    grid.appendChild(bookGrid(save.progress, { onPick: (n) => { sfx.tap(); startLevel(n); } }));
+    body.append(side, grid);
+    root.append(head, body);
     ui.appendChild(root);
     app.backAction = () => goHome();
     const next = save.nextLevel();
     app.primary = next ? () => startLevel(next) : null;
+    if (!reduced()) grid.querySelectorAll('.appt').forEach((c, i) => c.animate([{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], { duration: 260, delay: i * 22, fill: 'backwards', easing: 'ease-out' }));
+    loadHerders();
+  }
+
+  /** How many herders kept today's Daily (the platform's counter), for the ticket. */
+  async function loadHerders() {
+    if (!ow?.data?.game?.get || app.herdersDay === save.today()) return;
+    app.herdersDay = save.today();
+    try {
+      const v = await ow.data.game.get('dailyHerders');
+      if (Number.isFinite(v) && v > 0) {
+        app.herders = v;
+        if (app.screen === 'book') { const c = ui.querySelector('#book .daily .crowd'); if (!c) showBook(); }
+      }
+    } catch { /* offline */ }
   }
 
   function goHome() {
     sfx.tap();
     if (app.net) showLobby();
     else showTitle();
+  }
+
+  // ---------- the wardrobe: the herder in the studio, trying things on
+  function showWardrobe(tab = app.wardTab ?? 'hat') {
+    if (app.net?.friendsWaiting()) { showLobby(); return; }
+    const again = app.screen === 'wardrobe';
+    const from = app.screen === 'lobby' ? 'lobby' : 'book';
+    clearUI();
+    setScreen('wardrobe');
+    hideLobbyStrip(true);
+    app.wardTab = tab;
+    app.wardFrom = again && app.wardFrom ? app.wardFrom : from;
+    if (app.scene !== 'dressing') startDressing();
+    const root = el('section');
+    root.id = 'wardrobe';
+    const head = el('header');
+    head.innerHTML = '<h2 class="ink">Wardrobe</h2>';
+    head.appendChild(button('Back', { cls: 'live', key: 'Esc', onClick: () => leaveWardrobe() }));
+    const label = el('div', 'trying ink');
+    root.append(head, label);
+    const draw = () => {
+      const old = root.querySelector('.wardrobe');
+      const panel = wardrobePanel({
+        owned: save.owned(), wearing: save.wearing(), fresh: save.progress.fresh, tab: app.wardTab, picked: app.dress?.trying ?? null,
+        onTab: (k) => { sfx.tap(); app.wardTab = k; tryOn(null); draw(); },
+        onPick: (it) => { sfx.tap(); tryOn(it); draw(); },
+        onWear: (it) => { sfx.chime(); save.wear(it.id); syncLooks(); tryOn(null); draw(); },
+      });
+      if (old) old.replaceWith(panel); else root.appendChild(panel);
+      const t = app.dress?.trying;
+      label.innerHTML = t ? `<span class="tn"></span><span class="ts">${icon('lock', { size: 20 })}<span></span></span>` : '';
+      if (t) {
+        label.querySelector('.tn').textContent = t.name;
+        const lv = Object.entries(LEVEL_ITEMS).find(([, id]) => id === t.id)?.[0];
+        label.querySelector('.ts span').textContent = lv ? `Herder level ${lv}` : `Fill the ${PAGES.find((pg) => pg.reward === t.id)?.name ?? ''} page`;
+      }
+      // what's new gets seen
+      const seenNow = save.progress.fresh.filter((id) => ITEM[id]?.kind === app.wardTab);
+      if (seenNow.length) { save.progress.fresh = save.progress.fresh.filter((id) => !seenNow.includes(id)); save.persist(); }
+    };
+    draw();
+    ui.appendChild(root);
+    app.backAction = () => leaveWardrobe();
+  }
+  function leaveWardrobe() {
+    sfx.tap();
+    app.dress = null;
+    app.scene = null;
+    view.hide();
+    if (app.wardFrom === 'lobby' && app.net) showLobby();
+    else showBook();
+  }
+
+  /** The dressing scene: the studio, the herder by their carrier, a cat to show off to. */
+  function startDressing() {
+    leaveScene();
+    const room = ROOMS.studio;
+    const g = createGame({ room, mode: 'ambient', seed: 3, cats: [{ type: 'moggy', coat: 'ginger', fixedCoat: true, x: 7.6, z: 7.2 }, { type: 'kitten', coat: 'calico', fixedCoat: true, x: 8.3, z: 6.6 }] });
+    const k = g.carriers[0];
+    const p = addPerson(g, { id: 'me', x: k.matX + k.nx * 2.2, z: k.matZ + k.nz * 2.2 });
+    p.h = Math.PI / 2;
+    app.dress = { g, p, t: 0, clapT: 1, trying: null, home: { x: p.x, z: p.z } };
+    app.scene = 'dressing';
+    dressView();
+    stage.frame(p, { follow: 3.6, snap: true });
+  }
+  function dressView() {
+    const d = app.dress;
+    if (!d) return;
+    const w = myWear();
+    const t = d.trying;
+    if (t) w[t.kind] = t;
+    view.show(d.g, { people: [{ avatar: avatarOf(myId()), seed: 1, wear: w }], me: -1, total: 'solo', skins: [w.carrier] });
+  }
+  function tryOn(it) {
+    const d = app.dress;
+    if (!d) return;
+    d.trying = it;
+    d.clapT = 0.3;
+    dressView();
+  }
+  function tickDressing(dt) {
+    const d = app.dress;
+    if (!d) return;
+    d.t += dt;
+    const p = d.p;
+    const tab = app.wardTab;
+    if (tab === 'trail') {
+      // a slow lap so the prints show
+      const a = d.t * 0.9;
+      const r = 1.3;
+      const nx = d.home.x + Math.cos(a) * r;
+      const nz = d.home.z + Math.sin(a) * r;
+      p.sp = Math.hypot(nx - p.x, nz - p.z) / Math.max(dt, 1e-3);
+      p.h = Math.atan2(nz - p.z, nx - p.x);
+      p.x = nx;
+      p.z = nz;
+    } else {
+      p.x += (d.home.x - p.x) * Math.min(1, dt * 4);
+      p.z += (d.home.z - p.z) * Math.min(1, dt * 4);
+      p.sp = 0;
+      p.h += (((Math.PI * 0.75 - p.h + Math.PI) % (Math.PI * 2)) - Math.PI) * Math.min(1, dt * 5);
+    }
+    if (tab === 'clap') {
+      d.clapT -= dt;
+      if (d.clapT <= 0) {
+        d.clapT = 1.8;
+        p.clapSeq = (p.clapSeq ?? 0) + 1;
+        view.event({ k: 'clap', p: 0, x: p.x, z: p.z }, { quiet: false });
+      }
+    }
+    const k = d.g.carriers[0];
+    if (tab === 'carrier') besidePanel(k.x + k.nx * 0.6, k.z + k.nz * 0.6, 3.6);
+    else besidePanel(p.x, p.z, tab === 'trail' ? 5.2 : 3.4);
+  }
+
+  /** Frame (x, z) beside the panel on the right (landscape) or above the sheet at the bottom (portrait). */
+  function besidePanel(x, z, span) {
+    const wide = innerWidth > innerHeight;
+    stage.aim(x, z, span, wide ? -0.2 : 0, wide ? 0 : 0.26);
+  }
+
+  // ---------- the Cat-alog
+  function showCatalog(page = app.catPage ?? 0) {
+    if (app.net?.friendsWaiting()) { showLobby(); return; }
+    clearUI();
+    setScreen('catalog');
+    hideLobbyStrip(true);
+    if (app.scene !== 'attract') { leaveScene(); startAttract(); }
+    app.catPage = page;
+    const root = el('section');
+    root.id = 'catalog';
+    const head = el('header');
+    const all = PAGES.reduce((a, pg) => a + pageState(pg, save.progress.book).have, 0);
+    const of = PAGES.reduce((a, pg) => a + pg.entries.length, 0);
+    head.innerHTML = `<h2 class="ink">Cat-alog</h2><span class="total num ink">${all}/${of}</span>`;
+    head.appendChild(button('Back', { cls: 'live', key: 'Esc', onClick: () => { sfx.tap(); showBook(); } }));
+    const owned = save.owned();
+    const panel = catalogPanel(save.progress.book, page, { onPage: (i) => { sfx.tap(); showCatalog(i); }, rewardOwned: owned.has(PAGES[page].reward) });
+    root.append(head, panel);
+    ui.appendChild(root);
+    app.backAction = () => { sfx.tap(); showBook(); };
+  }
+
+  // ---------- the Daily Appointment
+  function startDaily({ auto = false, day = null } = {}) {
+    const D = dailySetup(day ?? save.today());
+    startLevel(0, { auto, daily: D });
   }
 
   // ------------------------------------------------------------------ background scenes
@@ -600,7 +832,7 @@ async function boot() {
         w.carriers.push(cv);
       });
       w.list = roster;
-      view.setPeople(roster.map((r, i) => ({ avatar: avatarOf(r.id), seed: hashId(r.id), look: SEATS[i] })), -1);
+      view.setPeople(roster.map((r, i) => ({ avatar: avatarOf(r.id), seed: hashId(r.id), look: SEATS[i], wear: wearOf(r.id) })), -1);
     }
     w.acc += Math.min(dt, 0.1);
     while (w.acc >= STEP) { view.capture(); step(w.g, STEP); w.acc -= STEP; }
@@ -636,6 +868,7 @@ async function boot() {
   function leaveScene() {
     if (app.waiting) { stage.scene.remove(app.waiting.props); for (const cv of app.waiting.carriers ?? []) cv.dispose(); app.waiting = null; }
     app.attract = null;
+    app.dress = null;
     app.scene = null;
   }
 
@@ -645,27 +878,32 @@ async function boot() {
     return innerWidth >= innerHeight ? 8 : 6.6;
   }
 
-  function startLevel(n, { auto = false } = {}) {
-    const setup = levelSetup(n);
+  /** An appointment (n), or the Daily when `daily` is today's setup (dailySetup). */
+  function startLevel(n, { auto = false, daily = null } = {}) {
+    const setup = daily ? { level: daily, room: daily.room, cats: daily.cats } : levelSetup(n);
     if (!setup) return;
     leaveScene();
     clearUI();
     const L = setup.level;
     const tries = (app.tries = (app.tries ?? 0) + 1);
-    const g = createGame({ room: setup.room, mode: 'level', cats: setup.cats, seed: n * 101 + tries, clock: L.closes });
+    // the Daily is the same room and cats for everyone; its coats, like every try, are rolled fresh
+    const seed = daily ? daily.day * 13 + tries : n * 101 + tries;
+    const g = createGame({ room: setup.room, mode: 'level', cats: setup.cats, seed, clock: L.closes, twists: daily ? daily.twists : L.twists });
     const me = addPerson(g, { id: 'me' });
     app.run = {
-      kind: 'level', n, L, g, me, acc: 0, introT: 2.4, over: false, overT: 0, paused: false, auto,
-      brain: auto ? createBrain({ skill: 1, seed: n * 7 + 3 }) : null,
-      introCat: L.intro ? g.cats.find((c) => c.type === L.intro) : null, hintStage: 0, lastCount: 0, closeTicks: 0,
+      kind: daily ? 'daily' : 'level', n, L, g, me, acc: 0, introT: 2.4, over: false, overT: 0, paused: false, auto,
+      brain: auto ? createBrain({ skill: 1, seed: (n || 3) * 7 + 3 }) : null,
+      introCat: !daily && L.intro ? g.cats.find((c) => c.type === L.intro) : null, hintStage: daily ? 9 : 0, lastCount: 0, closeTicks: 0,
+      chState: 0, newCoats: new Set(),
     };
     app.scene = 'run';
-    view.show(g, { people: [{ avatar: avatarOf(myId()), seed: 1 }], me: 0, total: 'solo' });
+    const w = myWear();
+    view.show(g, { people: [{ avatar: avatarOf(myId()), seed: 1, wear: w }], me: 0, total: 'solo', skins: [w.carrier] });
     stage.frame(app.run.introCat ?? me, { follow: followSpan(), snap: true, zoom: app.run.introCat ? 0.8 : 1 });
     setScreen('solo');
     hideLobbyStrip(true);
     buildSoloHud();
-    sfx.setMusic('play', { seed: n });
+    sfx.setMusic('play', { seed: daily ? daily.day : n });
     sfx.clank();
     if (app.run.introCat) setTimeout(() => sfx.meow(1, 0.45, 0.16), 300);
   }
@@ -677,9 +915,10 @@ async function boot() {
     const tries = (app.tries = (app.tries ?? 0) + 1);
     const g = createGame({ room: setup.room, mode: 'catlady', cats: [], seed: 4242 + tries, clock: CATLADY.start });
     const me = addPerson(g, { id: 'me' });
-    app.run = { kind: 'catlady', g, me, acc: 0, introT: 1.6, over: false, overT: 0, paused: false, auto, brain: auto ? createBrain({ skill: 0.9, seed: 9 }) : null, lastCount: 0, closeTicks: 0, hintStage: 9 };
+    app.run = { kind: 'catlady', g, me, acc: 0, introT: 1.6, over: false, overT: 0, paused: false, auto, brain: auto ? createBrain({ skill: 0.9, seed: 9 }) : null, lastCount: 0, closeTicks: 0, hintStage: 9, newCoats: new Set() };
     app.scene = 'run';
-    view.show(g, { people: [{ avatar: avatarOf(myId()), seed: 1 }], me: 0, total: 'versus' });
+    const w = myWear();
+    view.show(g, { people: [{ avatar: avatarOf(myId()), seed: 1, wear: w }], me: 0, total: 'versus', skins: [w.carrier] });
     stage.frame(me, { follow: followSpan(), snap: true });
     setScreen('solo');
     hideLobbyStrip(true);
@@ -694,19 +933,27 @@ async function boot() {
     root.id = 'hud';
     const clock = clockFace();
     root.appendChild(clock.root);
-    const count = el('div', 'count num ink', `${carrierSvg('#e5493a')}<span class="v">0</span>`);
+    const count = el('div', 'count num ink', `${carrierSvg(myWear().carrier.shell ?? '#e5493a')}<span class="v">0</span>`);
     root.appendChild(count);
+    let chip = null;
+    if (r.kind !== 'catlady' && r.L.challenge) {
+      chip = challengeChip(r.L.challenge);
+      root.appendChild(chip.root);
+    }
     const keysRow = el('div', 'keys');
     keysRow.innerHTML = `<span class="k ink"><span class="cap">J</span>Treats</span><span class="k ink"><span class="cap">K</span>Clap</span>`;
     root.appendChild(keysRow);
     const head = el('div', 'headline');
     head.innerHTML = r.kind === 'level'
       ? `<div class="a">Appointment ${r.n}</div><div class="b ink">${esc(r.L.name)}</div>`
-      : `<div class="a">Endless shift</div><div class="b ink">Cat Lady</div>`;
+      : r.kind === 'daily'
+        ? `<div class="a">Daily · ${esc(r.L.name)}</div><div class="b ink">${esc(ROOMS[r.L.roomId]?.name ?? 'Today')}</div>`
+        : `<div class="a">Endless shift</div><div class="b ink">Cat Lady</div>`;
+    if (chip) head.insertAdjacentHTML('beforeend', `<div class="c">${esc(CHALLENGES[r.L.challenge]?.label ?? '')}</div>`);
     root.appendChild(head);
     ui.appendChild(root);
-    if (r.kind === 'level') clock.notches([r.L.expert / r.L.closes, r.L.par / r.L.closes]);
-    app.hud = { root, clock, count, head, countV: count.querySelector('.v'), shown: -1 };
+    if (r.kind !== 'catlady') clock.notches([r.L.par / r.L.closes]);
+    app.hud = { root, clock, count, head, chip, countV: count.querySelector('.v'), shown: -1 };
     if (!reduced()) head.animate([{ opacity: 0, transform: 'translate(-50%, -30%) scale(0.9)' }, { opacity: 1, transform: 'translate(-50%, -50%) scale(1)' }], { duration: 300, easing: 'ease-out' });
   }
 
@@ -724,7 +971,7 @@ async function boot() {
     stack.append(
       button('Resume', { cls: 'red', key: 'Esc', onClick: () => setPaused(false) }),
       button('Retry', { key: 'R', onClick: () => retry() }),
-      button(app.run.kind === 'level' ? 'Appointments' : 'Lobby', { onClick: () => quitRun() }),
+      button(app.run.kind === 'catlady' && app.net ? 'Lobby' : 'Appointments', { onClick: () => quitRun() }),
     );
     card.appendChild(stack);
     app.hud?.root.appendChild(card);
@@ -737,6 +984,7 @@ async function boot() {
     if (!r) return;
     sfx.tap();
     if (r.kind === 'level') startLevel(r.n, { auto: r.auto });
+    else if (r.kind === 'daily') startDaily({ auto: r.auto, day: r.L.day });
     else startCatLady({ auto: r.auto });
   }
 
@@ -746,7 +994,7 @@ async function boot() {
     app.run = null;
     view.hide();
     app.scene = null;
-    if (r?.kind === 'level' && !app.net?.friendsWaiting()) showBook();
+    if ((r?.kind === 'level' || r?.kind === 'daily' || !app.net) && !app.net?.friendsWaiting()) showBook();
     else goHome();
   }
 
@@ -793,7 +1041,7 @@ async function boot() {
       }
       alpha = r.acc / STEP;
       // the last cat on its way in: time slows and the camera leans in
-      if (r.kind === 'level' && !g.over && !r.lastSlow && !reduced() && !g.cats.some((c) => c.surprise)) {
+      if (r.kind !== 'catlady' && !g.over && !r.lastSlow && !reduced() && !g.cats.some((c) => c.surprise)) {
         const left = loose(g);
         const k = left.length === 1 && g.boxed > 0 ? soonIn(g, left[0], 0.45) : null;
         if (k) { r.lastSlow = true; juice.slow = 1.0; stage.punch(0.2, { x: k.x, z: k.z }); }
@@ -809,32 +1057,54 @@ async function boot() {
         void hud?.count.offsetWidth;
         hud?.count.classList.add('pop');
         if (r.kind === 'catlady') flyPlus(g.carriers[0]);
+        // a coat the Cat-alog hasn't got: say so as it goes in
+        const c = g.cats[e.c];
+        if (c && !r.auto && !save.progress.book.coats[c.coat] && !r.newCoats.has(c.coat) && COAT_INFO[c.coat]) {
+          r.newCoats.add(c.coat);
+          const k = g.carriers[e.ki] ?? g.carriers[0];
+          const rare = COAT_INFO[c.coat].rarity;
+          const at = stage.toScreen(k.matX, 1.2, k.matZ);
+          setTimeout(() => {
+            stampAt(stampLayer, rare >= 2 ? `${COAT_INFO[c.coat].name}!` : `New: ${COAT_INFO[c.coat].name}`, Math.max(140, Math.min(innerWidth - 140, at.x)), Math.max(120, at.y - 110), { gold: rare >= 1, cls: 'small', life: 1500, reducedMotion: reduced() });
+            if (rare >= 2) { sfx.chime(); view.hints.sparkle(k.matX, 0.8, k.matZ, 16); }
+          }, 380);
+        }
       }
     }
     view.lastSeq = g.evSeq;
     // HUD
     if (hud) {
-      if (r.kind === 'level') hud.clock.set(g.clock ?? 0, r.L.closes);
+      if (r.kind !== 'catlady') hud.clock.set(g.clock ?? 0, r.L.closes);
       else hud.clock.set(g.clock ?? 0, Math.max(60, g.clock ?? 60));
-      const shown = r.kind === 'level' ? `${g.boxed}/${g.total}` : String(g.boxed);
+      const shown = r.kind !== 'catlady' ? `${g.boxed}/${g.total}` : String(g.boxed);
       if (shown !== hud.shown) { hud.countV.textContent = shown; hud.shown = shown; }
       const left = g.clock ?? 99;
       sfx.setTense(left <= 30 && g.started && !g.over);
       const sec = Math.ceil(left);
       if (g.started && !g.over && sec <= 30 && sec !== r.lastTick) { r.lastTick = sec; sfx.tick(sec <= 10); }
     }
-    // star drops as the hand passes par and expert
-    if (r.kind === 'level' && g.started && !g.over) {
-      const used = g.elapsed;
-      if (!r.lostExpert && used > r.L.expert) { r.lostExpert = true; sfx.dull(); }
-      if (!r.lostPar && used > r.L.par) { r.lostPar = true; sfx.dull(); }
+    // the par star drops as the hand passes it; the challenge lights up or is lost
+    if (r.kind !== 'catlady' && g.started && !g.over) {
+      if (!r.lostPar && g.elapsed > r.L.par) { r.lostPar = true; sfx.dull(); }
+      const st = liveState(r.L.challenge, g.stats);
+      if (st !== r.chState) {
+        r.chState = st;
+        hud?.chip?.set(st);
+        if (st === 1) { sfx.chime(); if (!reduced()) hud?.chip?.root.animate([{ transform: 'scale(1.35)' }, { transform: 'scale(1)' }], { duration: 360, easing: 'cubic-bezier(.3,1.6,.6,1)' }); }
+        if (st === -1) sfx.dull();
+      }
     }
     // hints and the new cat's tag
     soloHints(r);
     if (!r.over && !(r.introCat && r.introT > 0)) pointers(g, g.carriers[0], '#e5493a', 'carrier');
-    // camera
-    const focus = r.introCat && r.introT > 0 ? r.introCat : r.me;
-    stage.frame(focus, { follow: followSpan(), zoom: r.introCat && r.introT > 0 ? 0.8 : 1 });
+    // camera: the run, then the full carrier beside the results
+    if (r.shown) {
+      const k = g.carriers[0];
+      besidePanel(k.x + k.nx * 0.5, k.z + k.nz * 0.5, 3.4);
+    } else {
+      const focus = r.introCat && r.introT > 0 ? r.introCat : r.me;
+      stage.frame(focus, { follow: followSpan(), zoom: r.introCat && r.introT > 0 ? 0.8 : 1 });
+    }
     // done
     if (g.over && !r.over) {
       r.over = true;
@@ -922,77 +1192,96 @@ async function boot() {
     }
   }
 
+  /** The cats I boxed in a run, for the Cat-alog: [{ type, coat }]. */
+  function boxedCats(g, slot = null, carrier = null) {
+    return g.cats.filter((c) => (c.st === S.boxed || c.st === S.enter) && !c.surprise
+      && (carrier == null || c.carrier === carrier) && (slot == null || c.by === slot || carrier != null)).map((c) => ({ type: c.type, coat: c.coat }));
+  }
+
   function showSoloResult() {
     const r = app.run;
     const g = r.g;
     const root = app.hud.root;
     root.querySelector('.keys')?.remove();
-    const card = el('div', 'result live');
-    if (r.kind === 'level') {
-      const L = r.L;
-      const res = g.result ?? { allIn: false, time: g.elapsed };
-      const outcome = r.auto ? { stars: save.starsFor(L, res.allIn, res.time), newBest: false, prevBest: null } : save.finishLevel(L, { allIn: res.allIn, time: res.time, boxed: g.boxed, stats: g.stats });
-      const best = save.progress.levels[L.n]?.best;
-      card.innerHTML = `<h2>${res.allIn ? 'All in!' : 'Missed appointment'}</h2>
-        <div class="stars"></div>
-        <div class="line"><span>${res.allIn ? 'Time' : 'Cats left'}</span><span class="num">${res.allIn ? fmtTime(res.time) : `${g.total - g.boxed}`}</span></div>
-        <div class="line"><span>Par ${fmt(L.par)} · Expert ${fmt(L.expert)}</span><span>Best <span class="num">${best ? fmtTime(best) : '-'}</span></span></div>
-        <div class="tops"></div>
-        <div class="acts"></div>`;
-      const starsEl = card.querySelector('.stars');
-      for (let i = 0; i < 3; i++) {
-        const s = el('span', '', star(false, 64));
-        starsEl.appendChild(s);
-        if (i < outcome.stars) {
-          setTimeout(() => {
-            s.innerHTML = star(true, 64);
-            if (!reduced()) s.animate([{ transform: 'translateY(-40px) scale(1.4)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 260, easing: 'cubic-bezier(.3,1.6,.6,1)' });
-            sfx.star(i);
-          }, 350 + i * 330);
-        }
-      }
-      if (outcome.newBest && outcome.prevBest != null) card.insertAdjacentHTML('beforeend', '<div class="stamp gold best">New best</div>');
-      const acts = card.querySelector('.acts');
-      const hasNext = res.allIn && L.n < LEVELS.length;
+    root.querySelector('.chip')?.remove();
+    const res = g.result ?? { allIn: false, time: g.elapsed, stats: g.stats };
+    const kind = r.kind;
+    const before = kind === 'level' ? (save.progress.levels[r.n]?.s ?? 0) : kind === 'daily' && save.progress.daily.day === r.L.day ? save.progress.daily.s : 0;
+    const prevShift = save.progress.catLady;
+    const rep = r.auto ? null : save.finish({ kind, L: r.L, result: res, mine: g.boxed, cats: boxedCats(g), day: kind === 'daily' ? r.L.day : undefined });
+    if (rep) syncLooks();
+    const acts = [];
+    const L = r.L;
+    let o;
+    if (kind === 'catlady') {
+      const best = save.progress.catLady;
+      o = {
+        title: 'Shift over', good: g.boxed > 0, sub: 'Cat Lady', big: { label: 'Cats boxed', value: String(g.boxed) },
+        lines: [['Shift', fmtTime(g.elapsed)], ['Best', String(Math.max(best, g.boxed))]], newBest: !r.auto && g.boxed > prevShift && prevShift > 0,
+      };
+      acts.push(button('Retry', { cls: 'red', key: 'Enter', onClick: () => retry() }), button(app.net ? 'Lobby' : 'Book', { key: 'Esc', onClick: () => quitRun() }));
+      app.primary = () => retry();
+    } else {
+      const mask = rep ? rep.stars : (res.allIn ? STAR.allIn : 0) | (res.allIn && res.time <= L.par ? STAR.par : 0);
+      o = {
+        title: res.allIn ? 'All in!' : 'Missed appointment', good: res.allIn,
+        sub: kind === 'daily' ? `Daily · ${L.name}` : `Appointment ${r.n} · ${L.name}`,
+        big: res.allIn ? { label: 'Time', value: fmtTime(res.time) } : { label: 'Cats left', value: String(g.total - g.boxed) },
+        lines: [],
+        stars: { mask, had: before, challenge: L.challenge, parText: `Under ${fmt(L.par)}` },
+        rosette: res.allIn && res.time <= L.expert, newRosette: !!rep?.newRosette, newBest: !!rep?.newBest && rep.prevBest != null,
+      };
+      const best = kind === 'level' ? save.progress.levels[r.n]?.best : save.progress.daily.time;
+      if (best) o.lines.push(['Best', fmtTime(best)]);
+      const hasNext = kind === 'level' && res.allIn && r.n < LEVELS.length;
       if (hasNext) {
-        acts.append(button('Next', { cls: 'red', key: 'Enter', onClick: () => startLevel(L.n + 1) }), button('Retry', { key: 'R', onClick: () => retry() }));
-        app.primary = () => startLevel(L.n + 1);
+        acts.push(button('Next', { cls: 'red', key: 'Enter', onClick: () => startLevel(r.n + 1) }), button('Retry', { key: 'R', onClick: () => retry() }));
+        app.primary = () => startLevel(r.n + 1);
       } else {
-        acts.append(button('Retry', { cls: 'red', key: 'Enter', onClick: () => retry() }));
+        acts.push(button('Retry', { cls: 'red', key: 'Enter', onClick: () => retry() }));
         app.primary = () => retry();
       }
-      acts.append(button('Book', { key: 'Esc', onClick: () => quitRun() }));
-      app.keyR = () => retry();
-      app.backAction = () => quitRun();
-      if (res.allIn) loadTops(card.querySelector('.tops'), `appt-${String(L.n).padStart(2, '0')}`, true);
-    } else {
-      const out = r.auto ? { best: g.boxed, newBest: false } : save.finishCatLady(g.boxed, g.stats);
-      card.innerHTML = `<h2>Shift over</h2>
-        <div class="line"><span>Cats boxed</span><span class="num" style="font-size:56px">${g.boxed}</span></div>
-        <div class="line"><span>Shift</span><span class="num">${fmtTime(g.elapsed)}</span></div>
-        <div class="line"><span>Best</span><span class="num">${out.best}</span></div>
-        <div class="tops"></div><div class="acts"></div>`;
-      if (out.newBest && g.boxed > 0) card.insertAdjacentHTML('beforeend', '<div class="stamp gold best">New best</div>');
-      card.querySelector('.acts').append(button('Retry', { cls: 'red', key: 'Enter', onClick: () => retry() }), button(app.net ? 'Lobby' : 'Title', { key: 'Esc', onClick: () => quitRun() }));
-      app.primary = () => retry();
-      app.keyR = () => retry();
-      app.backAction = () => quitRun();
-      loadTops(card.querySelector('.tops'), 'cat-lady', false);
+      acts.push(button('Book', { key: 'Esc', onClick: () => quitRun() }));
     }
-    root.appendChild(card);
-    if (!reduced()) card.animate([{ transform: 'translate(-50%, 120%)' }, { transform: 'translate(-50%, 0)' }], { duration: 380, easing: 'cubic-bezier(.2,1.2,.4,1)' });
+    app.keyR = () => retry();
+    app.backAction = () => quitRun();
+    const tops = el('div', 'tops');
+    const panel = resultPanel({
+      ...o, report: rep, actions: acts, tops, reduced: reduced(), sfx,
+      onWear: (it) => { save.wear(it.id); syncLooks(); },
+    });
+    root.appendChild(panel.root);
+    if (!reduced()) panel.root.animate([{ transform: 'translateX(40px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 300, easing: 'cubic-bezier(.2,1.2,.4,1)' });
+    // the carrier full of cats, a little confetti over it
+    const k = g.carriers[0];
+    if (res.allIn || kind === 'catlady') setTimeout(() => view.hints.confetti(k.x + k.nx * 0.4, k.z + k.nz * 0.4, ['#e5493a', '#f6b941', '#fff3df', '#4f9a5e'], 1.3, 10), 500);
+    if (kind === 'level' && res.allIn) loadTops(tops, `appt-${String(r.n).padStart(2, '0')}`, 'time');
+    if (kind === 'daily') {
+      const after = () => loadTops(tops, save.DAILY_BOARD, 'daily', L.day);
+      if (rep?.board) rep.board.then(after, after); else after();
+    }
+    if (kind === 'catlady') loadTops(tops, 'cat-lady', 'count');
   }
 
-  async function loadTops(box, board, time) {
+  /** The board's top five under the results: times, counts, or today's Daily (its scores carry the day). */
+  async function loadTops(box, board, as, day = null) {
     if (!box || !ow?.leaderboards?.top) return;
     try {
-      const res = await ow.leaderboards.top(board, { limit: 5 });
-      const list = Array.isArray(res?.entries) ? res.entries.slice(0, 5) : [];
+      const res = await ow.leaderboards.top(board, { limit: as === 'daily' ? 25 : 5 });
+      let list = Array.isArray(res?.entries) ? res.entries : [];
+      if (as === 'daily') list = list.filter((e) => Number.isFinite(e?.score) && save.dailyFromScore(e.score).day === day);
+      list = list.slice(0, 5);
       if (!list.length || !box.isConnected) return;
-      box.innerHTML = list.map((e, i) => {
+      box.innerHTML = `<div class="th">${as === 'daily' ? "Today's board" : 'Board'}</div>`;
+      list.forEach((e, i) => {
         const v = Number(e?.score);
-        return `<span class="num">${i + 1}</span><span>${esc(String(e?.player?.name ?? 'Player').slice(0, 24))}</span><span class="num">${Number.isFinite(v) ? (time ? fmtTime(v) : v) : ''}</span>`;
-      }).join('');
+        const row = el('div', 'tr');
+        row.innerHTML = '<span class="num"></span><span class="nm"></span><span class="num"></span>';
+        row.children[0].textContent = String(i + 1);
+        row.children[1].textContent = String(e?.player?.name ?? 'Player').slice(0, 24);
+        row.children[2].textContent = !Number.isFinite(v) ? '' : as === 'time' ? fmtTime(v) : as === 'daily' ? fmtTime(save.dailyFromScore(v).time) : String(v);
+        box.appendChild(row);
+      });
     } catch { /* offline, a guest */ }
   }
 
@@ -1066,7 +1355,7 @@ async function boot() {
       const together = s.data.mode === 'together';
       view.show(s.g, {
         looks: together ? [] : looks,
-        people: s.data.seats.map((id, i) => ({ avatar: id.startsWith('bot:') ? null : avatarOf(id), seed: hashId(id), look: looks[i] })),
+        people: s.data.seats.map((id, i) => ({ avatar: id.startsWith('bot:') ? null : avatarOf(id), seed: hashId(id), look: looks[i], wear: wearOf(id) })),
         me: s.me ? s.data.seats.indexOf(s.me) : -1, total: together ? 'together' : 'versus',
       });
       stage.frame(null, { snap: true, zoom: 1.05 });
@@ -1080,7 +1369,7 @@ async function boot() {
     if (app.peopleDirty) {
       app.peopleDirty = false;
       const looks = seatLooks(s);
-      view.setPeople(s.data.seats.map((id, i) => ({ avatar: id.startsWith('bot:') ? null : avatarOf(id), seed: hashId(id), look: looks[i] })), s.me ? s.data.seats.indexOf(s.me) : -1);
+      view.setPeople(s.data.seats.map((id, i) => ({ avatar: id.startsWith('bot:') ? null : avatarOf(id), seed: hashId(id), look: looks[i], wear: wearOf(id) })), s.me ? s.data.seats.indexOf(s.me) : -1);
     }
     if (mv.phase !== src.phase) {
       const prev = mv.phase;
@@ -1249,7 +1538,28 @@ async function boot() {
       hud.root.appendChild(head);
       hud.head = head;
       if (!reduced()) head.animate([{ transform: 'translate(-50%, -50%) scale(1.6)', opacity: 0 }, { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 }], { duration: 320, easing: 'cubic-bezier(.3,1.5,.6,1)' });
+      // my part of the round: XP, the Cat-alog, goals
+      if (s.me && !app.local && !s.roundPaid) {
+        s.roundPaid = true;
+        const i = s.data.seats.indexOf(s.me);
+        const together = s.data.mode === 'together';
+        const cats = together ? boxedCats(g, i) : boxedCats(g, null, i);
+        const rep = save.finish({ kind: 'round', mine: cats.length, cats, result: { allIn: false, time: 0, stats: {} } });
+        setTimeout(() => xpToast(rep, head), 700);
+      }
     }
+  }
+
+  /** A short "+n XP" under a headline after a round, and the level when it went up. */
+  function xpToast(rep, under = null) {
+    if (!rep || rep.xpGained <= 0) return;
+    const host = under ?? app.hud?.root;
+    if (!host || !host.isConnected) return;
+    const t = el('div', 'xptoast');
+    t.innerHTML = `${icon('xp', { fill: '#f6b941', size: 26 })}<span class="num">+${rep.xpGained}</span>${rep.after.level > rep.before.level ? `<span class="up">Level ${rep.after.level}</span>` : ''}`;
+    host.appendChild(t);
+    if (rep.after.level > rep.before.level) sfx.fanfare(); else sfx.chime();
+    if (!reduced()) t.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'ease-out' });
   }
 
   function tickResults(src, dt) {
@@ -1350,7 +1660,7 @@ async function boot() {
   // ------------------------------------------------------------------ the net
   function attachNet(room) {
     app.net = createNet(room, {
-      press: (kind, p) => view.event({ k: kind, x: p.x, z: p.z }),
+      press: (kind, p) => view.event({ k: kind, p: p.slot, x: p.x, z: p.z }),
       snapshot: ({ fresh }) => {
         const s = app.net.session;
         view.invalidate();
@@ -1364,13 +1674,14 @@ async function boot() {
       },
       results: (standings, mine) => {
         if (!mine) return;
-        const s = app.matchSession;
-        save.finishMatch({ won: mine.place === 1 && standings.length > 1, boxed: s?.data.mode === 'versus' ? mine.points : 0 });
+        const won = mine.place === 1 && standings.length > 1;
+        if (won) { const rep = save.finish({ kind: 'match', won: true, mine: 0, cats: [] }); xpToast(rep); }
       },
       close: (reason) => showClosed(reason),
       starting: () => {},
     });
     app.net.rank = Math.min(3, Math.floor(save.totalStars() / 15) + (save.progress.wins > 2 ? 1 : 0));
+    syncLooks();
     app.net.before = () => view.capture();
     room.on?.('join', () => { app.peopleDirty = true; });
     room.on?.('leave', () => { app.peopleDirty = true; });
@@ -1420,7 +1731,10 @@ async function boot() {
     let away = null;
     let vdt = dt;
     switch (app.screen) {
-      case 'title': case 'book':
+      case 'wardrobe':
+        tickDressing(dt);
+        break;
+      case 'title': case 'book': case 'catalog':
         if (app.scene === 'attract') { tickAttract(dt); alpha = app.attract.acc / STEP; }
         else if (app.scene === 'waiting') { tickWaiting(dt); alpha = app.waiting.acc / STEP; }
         break;
@@ -1499,9 +1813,14 @@ async function boot() {
   requestAnimationFrame(frame);
   if (AUTOPLAY) {
     await loading;
+    if (params.has('demo')) demoProgress();
     sfx.unlock();
     const sc = params.get('scene') ?? 'versus';
     if (sc === 'title') showTitle();
+    else if (sc === 'book') showBook();
+    else if (sc === 'wardrobe') showWardrobe(params.get('tab') ?? 'hat');
+    else if (sc === 'catalog') showCatalog(Number(params.get('page') ?? 0));
+    else if (sc === 'daily') startDaily({ auto: true });
     else if (sc === 'catlady') startCatLady({ auto: true });
     else if (sc === 'versus') startLocalMatch('versus');
     else if (sc === 'together') startLocalMatch('together');
@@ -1517,6 +1836,21 @@ async function boot() {
       if (AUTOPLAY_TO === 'lobby') showLobby();
     }
   }
+}
+
+/** Pictures of the screens need a player some way in (?autoplay&demo, never on onceworlds.com). */
+function demoProgress() {
+  const p = save.progress;
+  const masks = [7, 7, 5, 3, 7, 1, 3, 7, 1, 0];
+  masks.forEach((s, i) => { if (s) p.levels[i + 1] = { s, best: 18 + i * 7.3, ros: i % 3 === 0 }; });
+  p.xp = 1900;
+  p.catLady = 23;
+  p.boxed = 160;
+  for (const t of ['moggy', 'loaf', 'glutton', 'zoomer', 'scaredy', 'kitten']) p.book.types[t] = 3 + t.length;
+  for (const c of ['ginger', 'grey', 'tuxedo', 'calico', 'black', 'white', 'silver', 'cow', 'panda']) p.book.coats[c] = 2 + c.length;
+  p.daily = { last: save.today() - 1, streak: 4, best: 6, day: null, time: null, s: 0 };
+  p.fresh = ['hat:party'];
+  p.wear = { hat: 'hat:party', carrier: 'carrier:dots', clap: 'clap:hearts', trail: 'trail:paws' };
 }
 
 function hashId(id) {

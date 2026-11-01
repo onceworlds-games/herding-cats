@@ -6,12 +6,13 @@ import { buildRoom } from './room.js';
 import { createCats } from './cats.js';
 import { makePerson } from './people.js';
 import { makeCarrier } from './carriers.js';
-import { createFx } from './fx.js';
+import { createFx, SHAPE } from './fx.js';
 import { createGuides } from './guides.js';
 import { createTwists } from './twists.js';
 import { COAT_LOOK } from './catshader.js';
 import { TREATS, CLAP, S } from '../sim/tuning.js';
 import { TRICKS } from '../sim/game.js';
+import { COAT_INFO } from '../sim/coats.js';
 import * as sfx from '../audio.js';
 
 const PITCH = { kitten: 1.6, boss: 0.62, glutton: 0.8, scaredy: 1.3, zoomer: 1.15, loaf: 0.9, moggy: 1 };
@@ -92,7 +93,7 @@ export function createView(stage, { onStamp = null } = {}) {
     v.totalMode = opts.total ?? 'solo';
     v.local = opts.local !== false;
     g.carriers.forEach((k, i) => {
-      const c = makeCarrier(k, v.looks[i] ?? null);
+      const c = makeCarrier(k, v.looks[i] ?? null, opts.skins?.[i] ?? null);
       root.add(c.root);
       root.add(c.sign);
       v.carriers.push(c);
@@ -107,8 +108,12 @@ export function createView(stage, { onStamp = null } = {}) {
   v.setPeople = (list, me = -1) => {
     for (const p of v.persons) root.remove(p.root);
     v.persons = list.map((spec, i) => {
-      const p = makePerson(spec.avatar ?? null, spec.seed ?? i + 1);
+      const hat = spec.wear?.hat?.look ? { hat: spec.wear.hat.look, hatColor: spec.wear.hat.color } : {};
+      const p = makePerson(spec.avatar ?? null, spec.seed ?? i + 1, hat);
       p.setSeat(spec.look ?? null);
+      p.wear = spec.wear ?? null;
+      p.stepD = 0;
+      p.side = 1;
       root.add(p.root);
       return p;
     });
@@ -257,7 +262,7 @@ export function createView(stage, { onStamp = null } = {}) {
         break;
       }
       case 'clap': {
-        fx.clap(e.x, e.z);
+        fx.clap(e.x, e.z, v.persons[e.p]?.wear?.clap ?? null);
         if (!quiet) sfx.clapSound();
         stage.shake(0.08);
         const near = g.cats.some((o) => o.st !== S.boxed && Math.hypot(o.x - e.x, o.z - e.z) < CLAP.radius);
@@ -314,6 +319,17 @@ export function createView(stage, { onStamp = null } = {}) {
       const pq = prevPeople[i];
       if (hasPrev && back > 0 && pq && (pq.x - p.x) ** 2 + (pq.z - p.z) ** 2 < 1) { q.x += (pq.x - p.x) * back; q.z += (pq.z - p.z) * back; }
       view.update(q, dt, t, { away: opts.away?.has(i), reducedMotion: opts.reducedMotion });
+      // a trail of prints where the feet come down
+      const trail = view.wear?.trail;
+      if (trail?.fx && q.active !== false) {
+        const lx = view.lastX ?? q.x;
+        const lz = view.lastZ ?? q.z;
+        const d = Math.hypot(q.x - lx, q.z - lz);
+        if (d < 1) view.stepD += d;
+        if (view.stepD > (trail.fx === 'dot' ? 0.32 : 0.55)) { view.stepD = 0; view.side = -view.side; fx.print(q.x, q.z, q.h ?? 0, trail, view.side); }
+      }
+      view.lastX = q.x;
+      view.lastZ = q.z;
     });
     v.drawn = proxies;
     v.room?.update(t, dt);
@@ -331,6 +347,19 @@ export function createView(stage, { onStamp = null } = {}) {
           fx.kick(c.x, c.z, Math.cos(c.h), Math.sin(c.h), v.dustColor);
         }
         for (const p of v.drawn ?? []) if ((p.sp ?? 0) > 3.2 && p.active !== false) fx.kick(p.x, p.z, Math.cos(p.h), Math.sin(p.h), v.dustColor);
+      }
+      // a rare coat glints, so you spot it across the room and want it in the box
+      glintT -= dt;
+      if (glintT <= 0) {
+        glintT = 0.16;
+        for (const c of g.cats) {
+          const r = COAT_INFO[c.coat]?.rarity ?? 0;
+          if (r < 2 || c.st === S.boxed || c.st === S.enter || Math.random() > (r === 3 ? 0.9 : 0.4)) continue;
+          const sz = c.size ?? 1;
+          fx.emit(c.x + (Math.random() - 0.5) * 0.5 * sz, (c.y ?? 0) + (0.25 + Math.random() * 0.4) * sz, c.z + (Math.random() - 0.5) * 0.5 * sz, 1, {
+            color: r === 3 ? ['#ffe08a', '#fff3df'] : ['#e9d4ff', '#fff3df'], shape: SHAPE.spark, glow: true, speed: 0.15, up: 0.5, life: 0.55, size: 0.16, gravity: 0, drag: 2,
+          });
+        }
       }
     }
     // my ring
@@ -370,6 +399,7 @@ export function createView(stage, { onStamp = null } = {}) {
   const proxies = [];
   let hasPrev = false;
   let kickT = 0;
+  let glintT = 0;
   v.capture = () => {
     const g = v.g;
     if (!g) return;

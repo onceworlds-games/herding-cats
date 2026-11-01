@@ -2,7 +2,6 @@
 // the wall clock, the carrier glyph). main.js decides what shows; nothing here keeps game state.
 
 import { symbolSvg, PATHS } from './symbols.js';
-import { LEVELS } from '../sim/levels.js';
 
 export const $ui = () => document.getElementById('ui');
 
@@ -91,29 +90,6 @@ export function fmtTime(sec) {
   const m = Math.floor(sec / 60);
   const s = sec - m * 60;
   return `${m}:${s.toFixed(1).padStart(4, '0')}`;
-}
-
-const INTRO_SYMBOL = { loaf: 'moon', glutton: 'fish', zoomer: 'bolt', scaredy: 'heart', kitten: 'paw', boss: 'crown' };
-
-/** The Appointment Book: 15 cards. */
-export function bookCards(progress, { onPick }) {
-  const frag = document.createDocumentFragment();
-  let nextMarked = false;
-  for (const L of LEVELS) {
-    const rec = progress.levels[L.n];
-    const open = L.n === 1 || (progress.levels[L.n - 1]?.stars ?? 0) > 0;
-    const isNext = open && !(rec?.stars > 0) && !nextMarked;
-    if (isNext) nextMarked = true;
-    const c = el('button', `card${open ? '' : ' locked'}${isNext ? ' next' : ''}`);
-    c.type = 'button';
-    const sym = L.intro ? symbolSvg(INTRO_SYMBOL[L.intro] ?? 'paw', '#fff3df', '#2b1d1c', 30) : '';
-    c.innerHTML = `<span class="n">${L.n}</span><span class="nm">${esc(L.name)}</span>
-      <span class="ft">${open ? stars(rec?.stars ?? 0, 20) : symbolSvg('lock', '#2b1d1c', '#2b1d1c', 22)}<span>${rec?.best ? fmtTime(rec.best) : ''}</span></span>${open ? sym : ''}`;
-    if (open) c.addEventListener('click', () => onPick(L.n));
-    else c.disabled = true;
-    frag.appendChild(c);
-  }
-  return frag;
 }
 
 /** A stamp that thumps onto the screen at (x, y) and goes. */

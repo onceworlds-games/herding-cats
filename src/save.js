@@ -1,34 +1,16 @@
-// Progress: stars and best times per appointment, Cat Lady's best, cats boxed in all, wins. Saved on events (a level ends,
-// a shift ends, a match ends), never per frame. Badges and leaderboards go through the platform when it's there.
+// The player's progress (meta/progress.js) loaded from and stored to ow.save, and the platform's badges and boards.
+// Saved on events (a run ends, something is worn), never per frame.
 
+import * as P from './meta/progress.js';
 import { LEVELS } from './sim/levels.js';
+import { dayOf } from './sim/daily.js';
+import { PAGES } from './meta/catalog.js';
+import { COAT_INFO } from './sim/coats.js';
 
 const KEY = 'hc';
-const ow = () => window.onceworlds ?? null;
+const ow = () => (typeof window !== 'undefined' ? window.onceworlds ?? null : null);
 
-const fresh = () => ({ v: 1, levels: {}, catLady: 0, boxed: 0, wins: 0, seen: {}, hints: {} });
-
-export const progress = fresh();
-
-function clean(raw) {
-  const p = fresh();
-  if (!raw || typeof raw !== 'object' || raw.v !== 1) return p;
-  if (raw.levels && typeof raw.levels === 'object') {
-    for (const L of LEVELS) {
-      const v = raw.levels[L.n];
-      if (!v || typeof v !== 'object') continue;
-      const stars = Number.isInteger(v.stars) ? Math.max(0, Math.min(3, v.stars)) : 0;
-      const best = Number.isFinite(v.best) && v.best > 0 && v.best < 3600 ? v.best : null;
-      p.levels[L.n] = { stars, best };
-    }
-  }
-  p.catLady = Number.isInteger(raw.catLady) && raw.catLady >= 0 ? raw.catLady : 0;
-  p.boxed = Number.isInteger(raw.boxed) && raw.boxed >= 0 ? raw.boxed : 0;
-  p.wins = Number.isInteger(raw.wins) && raw.wins >= 0 ? raw.wins : 0;
-  if (raw.seen && typeof raw.seen === 'object') for (const k of Object.keys(raw.seen).slice(0, 20)) p.seen[k] = !!raw.seen[k];
-  if (raw.hints && typeof raw.hints === 'object') for (const k of Object.keys(raw.hints).slice(0, 20)) p.hints[k] = !!raw.hints[k];
-  return p;
-}
+export const progress = P.fresh();
 
 export async function load() {
   try {
@@ -36,7 +18,7 @@ export async function load() {
     let raw = null;
     if (o?.save) raw = await o.save.get(KEY);
     else raw = JSON.parse(localStorage.getItem(`herding-cats:${KEY}`) ?? 'null');
-    Object.assign(progress, clean(raw));
+    Object.assign(progress, P.clean(raw));
   } catch { /* a fresh start */ }
   return progress;
 }
@@ -57,74 +39,81 @@ export function award(key) {
 }
 
 export function submit(board, score, opts) {
-  try { ow()?.leaderboards?.submit(board, score, opts)?.catch?.(() => {}); } catch { /* ignore */ }
+  try { return Promise.resolve(ow()?.leaderboards?.submit(board, score, opts)).catch(() => null); } catch { return Promise.resolve(null); }
 }
 
-export const totalStars = () => Object.values(progress.levels).reduce((a, v) => a + (v?.stars ?? 0), 0);
-export const levelDone = (n) => (progress.levels[n]?.stars ?? 0) > 0;
-export const unlocked = (n) => n === 1 || levelDone(n - 1);
-export const catLadyOpen = () => levelDone(5);
-export const nextLevel = () => {
-  for (const L of LEVELS) if (!levelDone(L.n)) return L.n;
-  return null;
-};
-
-export function starsFor(L, allIn, time) {
-  if (!allIn) return 0;
-  if (time <= L.expert) return 3;
-  if (time <= L.par) return 2;
-  return 1;
+/** Today, by the platform's clock when there is one (the same day for everyone, UTC). */
+export function today() {
+  let now = Date.now();
+  try { const t = ow()?.now?.(); if (Number.isFinite(t) && t > 0) now = t; } catch { /* the device's clock */ }
+  return dayOf(now);
 }
 
-/** A finished appointment: stars, best, badges, boards. Returns { stars, newBest, prevBest }. */
-export function finishLevel(L, { allIn, time, boxed, stats }) {
-  const cur = progress.levels[L.n] ?? { stars: 0, best: null };
-  const stars = starsFor(L, allIn, time);
-  const prevBest = cur.best;
-  const newBest = allIn && (prevBest == null || time < prevBest - 0.005);
-  progress.levels[L.n] = { stars: Math.max(cur.stars, stars), best: newBest ? Math.round(time * 100) / 100 : prevBest };
-  addBoxed(boxed);
-  if (allIn) {
-    award('full-carrier');
-    if (time <= L.par) award('under-par');
-    if (L.n === 9 && stars === 3) award('cat-cafe');
-    if (LEVELS.every((x) => levelDone(x.n))) award('fifteen-appointments');
-    submit(`appt-${String(L.n).padStart(2, '0')}`, Math.round(time * 100) / 100, { lowerIsBetter: true });
-  }
-  if (stats?.bossFirst != null && stats.bossFirst >= 0) award('boss-move');
-  if (stats?.zoomies) award('zoomies');
-  submit('stars', totalStars());
+// the Daily's board keeps each player's best ever, so a score carries its day: today's always outrank older ones
+export const DAILY_BOARD = 'daily';
+export const dailyScore = (day, time) => day * 10000 + (9999 - Math.max(0, Math.min(9999, Math.round(time * 10))));
+export function dailyFromScore(score) {
+  const day = Math.floor(score / 10000);
+  return { day, time: (9999 - (score - day * 10000)) / 10 };
+}
+
+export const totalStars = () => P.totalStars(progress);
+export const levelStars = (n) => P.levelStars(progress, n);
+export const levelDone = (n) => P.levelDone(progress, n);
+export const unlocked = (n) => P.unlocked(progress, n);
+export const catLadyOpen = () => P.catLadyOpen(progress);
+export const dailyOpen = () => P.dailyOpen(progress);
+export const nextLevel = () => P.nextLevel(progress);
+export const herder = () => P.herder(progress);
+export const owned = () => P.owned(progress);
+export const wearing = () => P.wearing(progress);
+export const streak = () => P.streakNow(progress, today());
+export const goals = () => P.goalsToday(progress, today());
+
+export function wear(id) {
+  if (!P.wear(progress, id)) return false;
   persist();
-  return { stars, newBest, prevBest };
+  return true;
 }
 
-export function addBoxed(n) {
-  if (!(n > 0)) return;
-  progress.boxed += n;
-  award('first-cat');
+/** A run is over: the report for the results screen. run: see meta/progress.js finishRun. */
+export function finish(run) {
+  const day = run.day ?? today();
+  const rep = P.finishRun(progress, run, day);
+  const res = run.result ?? {};
+  const stats = res.stats ?? {};
+  const own = run.kind !== 'round';
+  // badges where they happen
+  if ((run.mine ?? 0) > 0) award('first-cat');
   if (progress.boxed >= 500) award('crazy-cat-person');
-  submit('cats-boxed', progress.boxed);
-}
-
-export function finishCatLady(boxed, stats) {
-  const prev = progress.catLady;
-  if (boxed > prev) progress.catLady = boxed;
-  addBoxed(boxed);
-  if (boxed >= 25) award('cat-lady');
-  if (stats?.zoomies) award('zoomies');
-  if (stats?.bossFirst != null && stats.bossFirst >= 0) award('boss-move');
-  if (boxed > 0) submit('cat-lady', boxed);
-  persist();
-  return { best: progress.catLady, newBest: boxed > prev };
-}
-
-export function finishMatch({ won, boxed }) {
-  if (won) {
-    progress.wins++;
-    award('best-in-show');
+  if ((run.kind === 'level' || run.kind === 'daily') && res.allIn) {
+    award('full-carrier');
+    if (rep.stars & P.STAR.par) award('under-par');
   }
-  addBoxed(boxed);
+  if (P.starCount(progress.levels[9]?.s ?? 0) === 3) award('cat-cafe');
+  if (LEVELS.every((L) => P.levelDone(progress, L.n))) award('fifteen-appointments');
+  if (own && stats.bossFirst != null && stats.bossFirst >= 0) award('boss-move');
+  if (own && stats.zoomies) award('zoomies');
+  if (own && (stats.bestCombo ?? 0) >= 4) award('cat-train');
+  if (own && (stats.banks ?? 0) > 0) award('bank-shot');
+  if (run.kind === 'catlady' && (run.mine ?? 0) >= 25) award('cat-lady');
+  if (run.won) award('best-in-show');
+  if ((run.cats ?? []).some((c) => (COAT_INFO[c.coat]?.rarity ?? 0) >= 2)) award('rare-coat');
+  if (PAGES.every((pg) => P.owned(progress).has(pg.reward))) award('cat-alog');
+  if (progress.daily.streak >= 7) award('week-of-dailies');
+  if (rep.after.level >= 10) award('herder-10');
+  // boards
+  if (run.kind === 'level' && res.allIn) submit(`appt-${String(run.L.n).padStart(2, '0')}`, Math.round(res.time * 100) / 100, { lowerIsBetter: true });
+  if (run.kind === 'daily' && res.allIn) rep.board = submit(DAILY_BOARD, dailyScore(day, res.time));
+  if (run.kind === 'catlady' && (run.mine ?? 0) > 0) submit('cat-lady', run.mine);
+  if (run.kind === 'level' || run.kind === 'daily') submit('stars', P.totalStars(progress));
+  if (run.mine > 0) submit('cats-boxed', progress.boxed);
+  if (rep.xpGained > 0) submit('herder', progress.xp);
+  if (rep.dailyFirst) {
+    try { ow()?.data?.game?.add?.('dailyHerders', 1)?.catch?.(() => {}); } catch { /* ignore */ }
+  }
   persist();
+  return rep;
 }
 
 export function seen(key) {

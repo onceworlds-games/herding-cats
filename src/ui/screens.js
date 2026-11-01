@@ -31,9 +31,9 @@ export function catPicture(kind, id, size = 64, cls = '') {
 /** Where a thing comes from, for the wardrobe's locked tiles. */
 function source(it) {
   const lv = Object.entries(LEVEL_ITEMS).find(([, id]) => id === it.id)?.[0];
-  if (lv) return `Level ${lv}`;
+  if (lv) return { pic: 'lock', text: `Level ${lv}` };
   const page = PAGES.find((p) => p.reward === it.id);
-  return page ? `${page.name} page` : '';
+  return { pic: 'catalog', text: page ? page.name : '' };
 }
 
 // ------------------------------------------------------------------ the herder's card
@@ -158,7 +158,7 @@ export function wardrobePanel({ owned, wearing, fresh, tab, picked, onTab, onPic
     const on = wearing[it.kind] === it.id;
     const b = el('button', `item${have ? '' : ' locked'}${on ? ' on' : ''}${picked?.id === it.id ? ' picked' : ''}${fresh.includes(it.id) ? ' fresh' : ''}`);
     b.type = 'button';
-    b.innerHTML = `${itemPicture(it, 76)}<span class="nm"></span>${have ? (on ? `<span class="tag">${icon('tick', { fill: '#f6b941', size: 18 })}</span>` : '') : `<span class="src">${icon('lock', { size: 16 })}${esc(source(it))}</span>`}`;
+    b.innerHTML = `${itemPicture(it, 76)}<span class="nm"></span>${have ? (on ? `<span class="tag">${icon('tick', { fill: '#f6b941', size: 18 })}</span>` : '') : `<span class="src">${icon(source(it).pic, { size: 16 })}${esc(source(it).text)}</span>`}`;
     b.querySelector('.nm').textContent = it.id === 'hat:none' ? 'Your own' : it.name;
     b.addEventListener('click', (e) => { e.stopPropagation(); if (have) onWear(it); else onPick(it); });
     grid.appendChild(b);
@@ -195,7 +195,7 @@ export function catalogPanel(book, page, { onPage, rewardOwned }) {
   const reward = ITEM[P.reward];
   const foot = el('div', `reward${st.done ? ' got' : ''}`);
   foot.innerHTML = `${itemPicture(reward, 54)}<span class="rt"><span class="k">${st.done ? 'Page complete' : 'Fill the page'}</span><b></b></span><span class="bar"><i style="width:${Math.round((st.have / st.of) * 100)}%"></i></span>${st.done && rewardOwned ? icon('tick', { fill: '#f6b941', size: 28 }) : ''}`;
-  foot.querySelector('b').textContent = reward?.name ?? '';
+  foot.querySelector('b').textContent = reward ? (reward.kind === 'hat' ? reward.name : `${reward.name} ${reward.kind}`) : '';
   root.append(tabs, grid, foot);
   return root;
 }

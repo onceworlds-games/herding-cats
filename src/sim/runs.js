@@ -8,7 +8,7 @@ import { STEP, ROUND, CATLADY } from './tuning.js';
 
 export function runLevel(n, { skill = 1, style = 'shepherd', seed = 1, limit = null } = {}) {
   const setup = levelSetup(n);
-  const g = createGame({ room: setup.room, mode: 'level', cats: setup.cats, seed, clock: limit ?? setup.level.closes, twists: setup.level.twists });
+  const g = createGame({ room: setup.room, mode: 'level', cats: setup.cats, seed, clock: limit ?? setup.level.closes, twists: setup.twists });
   const p = addPerson(g, { id: 'me' });
   const b = createBrain({ skill, style, seed: seed * 7 + 3 });
   g.started = true;

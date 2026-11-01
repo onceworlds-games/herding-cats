@@ -1,5 +1,9 @@
 // Every sound is made here in Web Audio: meows, the treat bag, claps, the carrier's clank, crashes, the clock, and a little
-// jazz trio (walking bass, brushes, vibraphone) that plays under it all. Nothing throws: no audio just means silence.
+// jazz trio (walking bass, brushes, vibraphone) that plays under it all and fills out as the carrier fills. Recorded sounds
+// (footsteps, latches, bumps, breaks, pages, jingles; Kenney, CC0) come from one sprite and layer over the made ones; until
+// it loads, the made ones play alone. Nothing throws: no audio just means silence.
+
+import { SPRITE } from './sfxsprite.js';
 
 let ctx = null;
 let master = null;
@@ -8,6 +12,21 @@ let music = null;
 let verb = null;
 let noiseBuf = null;
 let unlocked = false;
+let spriteBuf = null;
+// fetched early, decoded once there's a context
+let spriteBytes = null;
+try {
+  spriteBytes = fetch(new URL('sfx/sprite.mp3', document.baseURI)).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null);
+} catch { spriteBytes = Promise.resolve(null); }
+
+function decodeSprite() {
+  spriteBytes?.then((b) => {
+    if (!b || !ctx || spriteBuf) return;
+    try {
+      ctx.decodeAudioData(b.slice(0), (buf) => { spriteBuf = buf; }, () => {});
+    } catch { /* ignore */ }
+  }).catch(() => {});
+}
 
 function make() {
   if (ctx) return ctx;
@@ -42,6 +61,7 @@ function make() {
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const nd = noiseBuf.getChannelData(0);
     for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+    decodeSprite();
   } catch {
     ctx = null;
   }
@@ -89,6 +109,29 @@ function tone(type, freq, t, a, peak, d, { to = null, dest = sfx, wet = 0, detun
   o.stop(t + a + d + 0.05);
   return o;
 }
+
+/** A recorded sound from the sprite: false when it isn't loaded (the caller plays a made one instead). */
+function play(name, { vol = 1, rate = 1, at = 0, wet = 0, dest = sfx, vary = 0.06 } = {}) {
+  if (!spriteBuf) return false;
+  const s = SPRITE[name];
+  if (!s) return false;
+  try {
+    const src = ctx.createBufferSource();
+    src.buffer = spriteBuf;
+    src.playbackRate.value = rate * (1 + (Math.random() * 2 - 1) * vary);
+    const g = ctx.createGain();
+    g.gain.value = vol;
+    src.connect(g).connect(dest);
+    if (wet) {
+      const w = ctx.createGain();
+      w.gain.value = wet;
+      g.connect(w).connect(verb);
+    }
+    src.start(ctx.currentTime + at, s[0], s[1] + 0.02);
+    return true;
+  } catch { return false; }
+}
+const one = (base, n) => `${base}${Math.floor(Math.random() * n)}`;
 
 function noise(t, dur, { type = 'bandpass', freq = 1500, q = 1, peak = 0.4, a = 0.002, to = null, dest = sfx, wet = 0 } = {}) {
   const s = ctx.createBufferSource();
@@ -210,8 +253,9 @@ export function purr() {
 export function rattle() {
   if (!ok()) return;
   const t = ctx.currentTime;
+  const bag = play(one('bag', 2), { vol: 0.75, rate: 1.1 });
   const n = 8 + Math.floor(Math.random() * 5);
-  for (let i = 0; i < n; i++) noise(t + Math.random() * 0.32, 0.025, { type: 'bandpass', freq: 2500 + Math.random() * 3000, q: 4, peak: 0.25 });
+  for (let i = 0; i < n; i++) noise(t + Math.random() * 0.32, 0.025, { type: 'bandpass', freq: 2500 + Math.random() * 3000, q: 4, peak: bag ? 0.14 : 0.25 });
 }
 
 export function clapSound() {
@@ -219,33 +263,59 @@ export function clapSound() {
   const t = ctx.currentTime;
   noise(t, 0.09, { type: 'bandpass', freq: 1400, q: 0.8, peak: 0.6, wet: 1 });
   noise(t + 0.012, 0.07, { type: 'bandpass', freq: 2200, q: 0.9, peak: 0.35, wet: 0.6 });
+  noise(t + 0.025, 0.05, { type: 'bandpass', freq: 1100, q: 1.2, peak: 0.3, wet: 0.8 });
+  play('soft0', { vol: 0.22, rate: 1.6, wet: 0.4 });
 }
 
 export function clank() {
   if (!ok()) return;
   const t = ctx.currentTime;
-  for (const [f, p] of [[420, 0.12], [1130, 0.08], [1870, 0.05], [2650, 0.04]]) tone('sine', f, t, 0.002, p, 0.35, { wet: 0.4 });
-  noise(t, 0.02, { type: 'highpass', freq: 4000, peak: 0.3 });
+  const k = play('latch', { vol: 0.8, wet: 0.2 }) ? 0.5 : 1;
+  for (const [f, p] of [[420, 0.12], [1130, 0.08], [1870, 0.05], [2650, 0.04]]) tone('sine', f, t, 0.002, p * k, 0.35, { wet: 0.4 });
+  noise(t, 0.02, { type: 'highpass', freq: 4000, peak: 0.3 * k });
 }
 
 export function stamp() {
   if (!ok()) return;
   const t = ctx.currentTime;
-  tone('sine', 110, t, 0.004, 0.5, 0.18, { to: 45 });
-  noise(t, 0.05, { type: 'lowpass', freq: 900, peak: 0.25 });
+  tone('sine', 110, t, 0.004, 0.42, 0.18, { to: 45 });
+  noise(t, 0.05, { type: 'lowpass', freq: 900, peak: 0.2 });
+  play('thud', { vol: 0.55, rate: 1.15 });
 }
 
 export function knock() {
   if (!ok()) return;
   const t = ctx.currentTime;
-  tone('sine', 230, t, 0.002, 0.3, 0.12, { to: 180 });
-  noise(t, 0.04, { type: 'bandpass', freq: 700, q: 3, peak: 0.2 });
+  if (!play(one('wood', 3), { vol: 0.7, wet: 0.2 })) {
+    tone('sine', 230, t, 0.002, 0.3, 0.12, { to: 180 });
+    noise(t, 0.04, { type: 'bandpass', freq: 700, q: 3, peak: 0.2 });
+  }
   setTimeout(() => meow(0.8, 0.3, 0.12), 120);
+}
+
+/** Something hard and hollow (the robot vacuum, the carrier). */
+export function tin() {
+  if (!ok()) return;
+  if (!play('tin', { vol: 0.55, rate: 1.1 })) knock();
+}
+
+/** Someone at the front door: three knocks, the doorbell coming. */
+export function doorKnock() {
+  if (!ok()) return;
+  for (let i = 0; i < 3; i++) if (!play('woodheavy', { vol: 0.5, at: i * 0.17, rate: 1.1, wet: 0.5 })) tone('sine', 160, ctx.currentTime + i * 0.17, 0.002, 0.25, 0.1, { to: 110 });
+}
+
+/** The doorbell twist: ding, dong. */
+export function doorbell() {
+  if (!ok()) return;
+  if (play('bell', { vol: 0.5, rate: 1.26, wet: 0.5, vary: 0 })) play('bell', { vol: 0.5, rate: 1, at: 0.42, wet: 0.5, vary: 0 });
+  else { vib(83, ctx.currentTime, 1.1, 0.16); vib(79, ctx.currentTime + 0.42, 1.4, 0.16); }
 }
 
 export function crash() {
   if (!ok()) return;
   const t = ctx.currentTime;
+  if (play(one('glass', 2), { vol: 0.75, wet: 0.4 })) { play('plate', { vol: 0.5, at: 0.03 }); return; }
   noise(t, 0.25, { type: 'highpass', freq: 2500, peak: 0.4, wet: 0.8 });
   noise(t + 0.04, 0.18, { type: 'bandpass', freq: 5000, q: 2, peak: 0.25 });
   for (let i = 0; i < 6; i++) tone('sine', 2500 + Math.random() * 3500, t + Math.random() * 0.2, 0.001, 0.05, 0.12 + Math.random() * 0.2, { wet: 0.5 });
@@ -274,7 +344,7 @@ export function squeak() {
 
 export function hop() {
   if (!ok()) return;
-  noise(ctx.currentTime, 0.05, { type: 'lowpass', freq: 600, peak: 0.12 });
+  if (!play(one('soft', 2), { vol: 0.3, rate: 1.35 })) noise(ctx.currentTime, 0.05, { type: 'lowpass', freq: 600, peak: 0.12 });
 }
 
 let lastStep = 0;
@@ -283,6 +353,8 @@ export function step(floor = 'oak') {
   const t = ctx.currentTime;
   if (t - lastStep < 0.12) return;
   lastStep = t;
+  const kind = { oak: 'wood', deck: 'wood', tile: 'stone', stone: 'stone', carpet: 'carpet', grass: 'grass' }[floor] ?? 'wood';
+  if (play(one(`step_${kind}`, 4), { vol: 0.32, vary: 0.1 })) return;
   const f = { oak: 900, deck: 700, tile: 1400, carpet: 380, grass: 520, stone: 1100 }[floor] ?? 800;
   noise(t, 0.03, { type: 'bandpass', freq: f * (0.9 + Math.random() * 0.2), q: 2, peak: 0.05 });
 }
@@ -290,6 +362,7 @@ export function step(floor = 'oak') {
 export function tick(loud = false) {
   if (!ok()) return;
   const t = ctx.currentTime;
+  if (play('tick', { vol: loud ? 0.75 : 0.4, rate: loud ? 1.15 : 1, vary: 0 })) return;
   tone('square', loud ? 1900 : 1500, t, 0.001, loud ? 0.06 : 0.03, 0.03);
 }
 
@@ -303,9 +376,30 @@ export function chime() {
 export function tap() {
   if (!ok()) return;
   const t = ctx.currentTime;
+  if (play('click', { vol: 0.55 })) return;
   tone('sine', 780, t, 0.002, 0.12, 0.06, { to: 600 });
   noise(t, 0.01, { type: 'bandpass', freq: 2000, q: 2, peak: 0.08 });
 }
+
+/** Screens: a page of the Cat-alog or the book turning, a coat tried on, a tab, a coin for each line of XP. */
+export function page() { if (ok() && !play(one('page', 2), { vol: 0.6 })) tap(); }
+export function bookOpen() { if (ok() && !play('bookopen', { vol: 0.55 })) tap(); }
+export function cloth() { if (ok() && !play(one('cloth', 2), { vol: 0.6 })) tap(); }
+export function toggle() { if (ok() && !play('toggle', { vol: 0.5 })) tap(); }
+export function coin(i = 0) { if (ok() && !play(one('chip', 3), { vol: 0.5, rate: 1 + Math.min(i, 8) * 0.04 })) tap(); }
+export function unlockItem() {
+  if (!ok()) return;
+  play('coins', { vol: 0.5 });
+  if (!play('maximize', { vol: 0.45, at: 0.05 })) chime();
+}
+/** A rare coat seen for the first time. */
+export function rare() {
+  if (!ok()) return;
+  if (!play('glassui', { vol: 0.5, wet: 0.6, vary: 0 })) chime();
+  play('j_tada', { vol: 0.55, at: 0.12, vary: 0 });
+}
+/** A Cat-alog page filled. */
+export function pageDone() { if (ok() && !play('j_page', { vol: 0.7, vary: 0 })) fanfare(); }
 
 export function dull() {
   if (!ok()) return;
@@ -318,6 +412,7 @@ export function star(i = 0) {
   const f = [1319, 1568, 2093][i] ?? 1568;
   tone('sine', f, t, 0.002, 0.2, 0.6, { wet: 0.7 });
   tone('sine', f * 2, t, 0.002, 0.06, 0.3);
+  play('pluck1', { vol: 0.4, rate: [1, 1.12, 1.33][i] ?? 1, vary: 0 });
   stamp();
 }
 
@@ -369,6 +464,10 @@ export function roundStart() {
 export function allIn() {
   if (!ok()) return;
   const t = ctx.currentTime;
+  if (play('j_allin', { vol: 0.85, wet: 0.3, vary: 0 })) {
+    [1.3, 1.0, 1.6].forEach((p, i) => setTimeout(() => meow(p, 0.35, 0.1), 650 + i * 140));
+    return;
+  }
   for (const m of [65, 69, 72, 76]) {
     const o = ctx.createOscillator();
     o.type = 'sawtooth';
@@ -389,6 +488,7 @@ export function allIn() {
 export function missed() {
   if (!ok()) return;
   const t = ctx.currentTime;
+  if (play('j_missed', { vol: 0.8, wet: 0.3, vary: 0 })) { setTimeout(() => meow(0.7, 0.6, 0.1), 1500); return; }
   [[58, 0], [57, 0.35], [56, 0.7], [55, 1.05]].forEach(([m, dt], i) => {
     const o = ctx.createOscillator();
     o.type = 'sawtooth';
@@ -410,6 +510,7 @@ export function missed() {
 export function fanfare() {
   if (!ok()) return;
   const t = ctx.currentTime;
+  if (play('j_levelup', { vol: 0.8, wet: 0.3, vary: 0 })) { play('j_tada', { vol: 0.55, at: 1.25, vary: 0 }); return; }
   [[65, 0], [69, 0.12], [72, 0.24], [77, 0.4], [77, 0.62], [81, 0.74]].forEach(([m, dt]) => vib(m, t + dt, 0.9, 0.12));
   allIn();
 }
@@ -424,7 +525,9 @@ const CHORDS = [
 ];
 const SCALE = [65, 67, 69, 70, 72, 74, 76, 77, 79];
 
-const seq = { on: false, mode: 'menu', bpm: 112, next: 0, beat: 0, timer: 0, seed: 1, phrase: [], tense: false };
+// fill: how full the carrier is (0..1). The trio starts as bass and a ride, then brushes, comping, the vibes' tune, and
+// the tune doubled an octave up for the last cats; with the clock nearly out it speeds up and stabs.
+const seq = { on: false, mode: 'menu', bpm: 112, next: 0, beat: 0, timer: 0, seed: 1, phrase: [], tense: false, fill: 0 };
 
 function rnd() {
   seq.seed = (seq.seed * 1103515245 + 12345) & 0x7fffffff;
@@ -458,20 +561,29 @@ function schedule() {
     const bm = walk[inBar];
     tone('triangle', NOTE(bm), t, 0.004, 0.22, spb * 0.75, { dest: music });
     tone('sine', NOTE(bm + 12), t, 0.002, 0.05, 0.05, { dest: music });
-    // brushes on 2 and 4, a ride on every swung eighth
-    if (inBar === 1 || inBar === 3) noise(t, spb * 0.5, { type: 'bandpass', freq: 3200, q: 0.7, peak: 0.05, a: 0.04, dest: music });
+    const inPlay = seq.mode === 'play';
+    const f = inPlay ? seq.fill : 0.25;
+    // a ride on every swung eighth; brushes on 2 and 4 once there's something to play for
     noise(t, 0.04, { type: 'highpass', freq: 7000, peak: 0.02, dest: music });
     noise(t + spb * 0.66, 0.03, { type: 'highpass', freq: 7000, peak: 0.012, dest: music });
-    if (seq.mode === 'play') {
-      // comp the chord on the and of 2 sometimes
-      if (inBar === 1 && rnd() < 0.7) for (const m of ch.tones) vib(m, t + spb * 0.66, spb * 0.6, 0.025, music);
-      // melody: swung eighths from the phrase
+    if (f >= 0.15 && (inBar === 1 || inBar === 3)) noise(t, spb * 0.5, { type: 'bandpass', freq: 3200, q: 0.7, peak: 0.05, a: 0.04, dest: music });
+    if (inPlay) {
+      // comp the chord on the and of 2 (and of 4 when it's nearly full)
+      if (f >= 0.34 && inBar === 1 && rnd() < 0.75) for (const m of ch.tones) vib(m, t + spb * 0.66, spb * 0.6, 0.025, music);
+      if (f >= 0.7 && inBar === 3 && rnd() < 0.5) for (const m of ch.tones) vib(m, t + spb * 0.66, spb * 0.4, 0.02, music);
+      // the tune: swung eighths from the phrase, sparse at first, all of it later, doubled at the end
       if (inBar === 0 && bar === 0 && rnd() < 0.5) seq.phrase = makePhrase();
-      for (let half = 0; half < 2; half++) {
-        const idx = (bar * 4 + inBar) * 2 + half;
-        const m = seq.phrase[idx % seq.phrase.length];
-        if (m != null) vib(m, t + (half ? spb * 0.66 : 0), spb * 0.9, 0.05, music);
+      if (f >= 0.5) {
+        for (let half = 0; half < 2; half++) {
+          const idx = (bar * 4 + inBar) * 2 + half;
+          const m = seq.phrase[idx % seq.phrase.length];
+          if (m == null || (f < 0.67 && half === 1)) continue;
+          vib(m, t + (half ? spb * 0.66 : 0), spb * 0.9, 0.05, music);
+          if (f >= 0.84) vib(m + 12, t + (half ? spb * 0.66 : 0), spb * 0.6, 0.018, music);
+        }
       }
+      // a kick on 1 and 3 once it's going
+      if (f >= 0.5 && (inBar === 0 || inBar === 2)) tone('sine', 70, t, 0.003, 0.14, 0.14, { to: 42, dest: music });
       if (seq.tense && (inBar === 0 || inBar === 2)) tone('square', NOTE(ch.tones[(beat >> 1) % 4] + 12), t + spb * 0.66, 0.002, 0.018, 0.07, { dest: music });
     }
     seq.beat++;
@@ -483,6 +595,7 @@ export function setMusic(mode, { seed = 1, tense = false } = {}) {
   if (!ctx) return;
   seq.seed = (seed * 7919) | 1;
   if (mode !== seq.mode) seq.phrase = makePhrase();
+  if (mode === 'play') seq.fill = 0;
   seq.mode = mode;
   seq.tense = tense;
   seq.bpm = tense ? 132 : 112;
@@ -495,6 +608,11 @@ export function setMusic(mode, { seed = 1, tense = false } = {}) {
     clearInterval(seq.timer);
     seq.timer = setInterval(() => { try { schedule(); } catch { /* ignore */ } }, 30);
   }
+}
+
+/** How full the carrier is, 0..1: the trio fills out with it. */
+export function setFill(f) {
+  seq.fill = Number.isFinite(f) ? Math.max(0, Math.min(1, f)) : 0;
 }
 
 export function setTense(on) {

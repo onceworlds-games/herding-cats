@@ -2,6 +2,7 @@
 // are drawn by render/people.js (hats), render/carriers.js (carrier shells) and render/fx.js (claps and trails).
 
 export const XP = {
+  best: 20, // beating your own time on a room you've kept
   cat: 10, // each cat into your carrier
   combo: 15, // each extra cat in a combo (a Double is +15, a Triple +30 more)
   trick: 20, // a bank shot, a knock-on, a laser, a ride, a delivery

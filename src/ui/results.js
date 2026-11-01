@@ -118,7 +118,7 @@ export function resultPanel(o) {
         const now = levelOf(rep.after.total - rep.xpGained + sum);
         lvb.textContent = String(now.level);
         bar.style.width = `${now.next ? (now.into / now.next) * 100 : 100}%`;
-        play('tap');
+        play('coin', xl.children.length);
       });
       t += 140;
     }
@@ -141,7 +141,7 @@ export function resultPanel(o) {
           u.appendChild(w);
         }
         extra.appendChild(u);
-        play('chime');
+        play('unlockItem');
       });
       t += 260;
     }
@@ -151,7 +151,16 @@ export function resultPanel(o) {
         const f = el('div', 'newcats');
         f.innerHTML = `<span class="k">New in the Cat-alog</span><span class="row">${faces.slice(0, 6).map(([k, id]) => `<span class="nf${k === 'coat' && COAT_INFO[id].rarity > 1 ? ' rare' : ''}">${catPicture(k, id, 54)}<span class="fn">${esc(k === 'type' ? TYPE_NAMES[id] : COAT_INFO[id].name)}</span></span>`).join('')}</span>`;
         extra.appendChild(f);
-        play('chime');
+        play(faces.some(([k, id]) => k === 'coat' && COAT_INFO[id].rarity > 1) ? 'rare' : 'page');
+      });
+      t += 300;
+    }
+    if (rep.book?.pages?.length) {
+      at(t, () => {
+        const f = el('div', 'pagedone');
+        f.innerHTML = `${icon('catalog', { fill: '#f6b941', size: 26 })}<span>Cat-alog page complete</span>`;
+        extra.appendChild(f);
+        play('pageDone');
       });
     }
   }

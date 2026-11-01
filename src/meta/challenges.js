@@ -1,5 +1,5 @@
 // The third star of an appointment: one thing to do on the way to a full carrier. Each reads the run's stats (g.stats)
-// once every cat is in; `live` says while playing whether it's still possible (false: already failed) or done (true).
+// once every cat is in; `liveState` says while playing whether it's done (1), lost (-1) or still open (0).
 
 export const CHALLENGES = {
   double: { label: 'A Double', icon: 'two', test: (s) => s.bestCombo >= 2 },

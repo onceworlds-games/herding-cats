@@ -52,7 +52,7 @@ body { font-family: var(--word); font-weight: 700; -webkit-user-select: none; us
 /* ------------------------------------------------------------------ title */
 #title { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; }
 #title .mark { margin-top: max(9vh, calc(var(--lt) - 20px)); text-align: center; line-height: 0.86; }
-#title .mark h1 { margin: 0; font: 900 clamp(56px, 11vw, 132px)/0.86 var(--word); letter-spacing: -0.02em; }
+#title .mark h1 { margin: 0; font: 900 clamp(56px, 11vw, 132px)/0.86 var(--word); letter-spacing: -0.02em; -webkit-text-stroke-width: 0.2em; filter: drop-shadow(0 0.06em 0 var(--ink)) drop-shadow(0 0.16em 0.22em rgba(20, 8, 6, 0.45)); }
 #title .mark h1 .w { display: block; white-space: nowrap; }
 #title .mark h1 .w span {
   display: inline-block; transform-origin: 50% 90%;
@@ -116,11 +116,11 @@ body { font-family: var(--word); font-weight: 700; -webkit-user-select: none; us
 #book header { display: flex; align-items: center; justify-content: space-between; padding: calc(var(--rt) + 2px) var(--sr) 8px calc(var(--sx) + 150px); gap: 12px; }
 #book header h2 { margin: 0; font: 900 34px/1 var(--word); }
 #book header .total { font-size: 30px; display: flex; align-items: center; gap: 6px; }
-#book .body { flex: 1; min-height: 0; display: flex; gap: 14px; padding: 4px var(--sr) 0 var(--sx); }
-#book .side { width: 340px; flex: none; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; padding: 4px 6px 24px 2px; touch-action: pan-y; }
+#book > .body { flex: 1; min-height: 0; display: flex; gap: 14px; padding: 4px var(--sr) 0 var(--sx); }
+#book > .body > .side { width: 340px; flex: none; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; padding: 4px 6px 24px 2px; touch-action: pan-y; }
 #book .more { display: flex; gap: 10px; }
 #book .more .btn { flex: 1; padding: 0 12px; font-size: 18px; }
-#book .grid { flex: 1; overflow-y: auto; padding: 4px 6px 24px 2px; display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 14px; align-content: start; touch-action: pan-y; }
+#book > .body > .grid { flex: 1; overflow-y: auto; padding: 4px 6px 24px 2px; display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); grid-auto-rows: max-content; gap: 14px; align-content: start; touch-action: pan-y; }
 
 /* ------------------------------------------------------------------ play HUD */
 #hud { position: absolute; inset: 0; }
@@ -257,14 +257,14 @@ button.herder:active { transform: translate(2px, 2px); }
   border-radius: 14px; box-shadow: 4px 4px 0 var(--ink); padding: 0; overflow: hidden; text-align: left; font: inherit; cursor: pointer;
 }
 .appt:active:not(.locked) { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--ink); }
-.appt .img { position: relative; display: block; aspect-ratio: 16 / 10; background: #6b5550 center / cover no-repeat; border-bottom: 3px solid var(--ink); }
+.appt .img { position: relative; display: block; flex: none; height: 116px; background: #6b5550 center / cover no-repeat; border-bottom: 3px solid var(--ink); }
 .appt .n { position: absolute; left: 8px; top: 4px; font-size: 44px; line-height: 1; color: var(--cream); -webkit-text-stroke: 0.15em var(--ink); paint-order: stroke fill; }
 .appt .new { position: absolute; right: 6px; top: 6px; display: flex; border-radius: 50%; border: 3px solid var(--gold); box-shadow: 0 0 0 2px var(--ink); overflow: hidden; }
 .appt .new .cat-pic { border-radius: 50%; }
 .appt .who { position: absolute; left: 6px; bottom: 6px; display: flex; gap: 2px; }
 .appt .who .cat-pic { border-radius: 50%; border: 2px solid var(--ink); }
 .appt .lk { position: absolute; inset: 0; display: grid; place-items: center; }
-.appt .foot { display: grid; gap: 5px; padding: 7px 10px 9px; }
+.appt .foot { flex: none; display: grid; gap: 5px; padding: 7px 10px 9px; }
 .appt .nm { font: 700 16px/1.1 var(--word); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .appt .meta { display: flex; align-items: center; gap: 4px; min-height: 26px; }
 .appt .bt { margin-left: auto; font-size: 20px; }
@@ -301,7 +301,7 @@ button.herder:active { transform: translate(2px, 2px); }
   background: rgba(43, 29, 28, 0.9); border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 12px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
 }
-.wardrobe .items { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; align-content: start; padding: 4px 4px 8px 2px; touch-action: pan-y; }
+.wardrobe .items { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); grid-auto-rows: max-content; gap: 10px; align-content: start; padding: 4px 4px 8px 2px; touch-action: pan-y; }
 .item {
   position: relative; display: grid; justify-items: center; gap: 4px; padding: 6px 4px 8px; background: var(--cream); color: var(--ink); border: 3px solid var(--ink);
   border-radius: 12px; box-shadow: 3px 3px 0 #170e0d; font: inherit; cursor: pointer;
@@ -322,7 +322,7 @@ button.herder:active { transform: translate(2px, 2px); }
 /* the Cat-alog: four pages of faces, a reward under each */
 .catalog { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 4px var(--sr) 14px var(--sx); max-width: 1180px; width: 100%; align-self: center; }
 .catalog .tabs .tab { min-height: 50px; gap: 10px; }
-.catalog .entries { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, 150px); justify-content: center; gap: 14px; align-content: start; padding: 6px 4px 10px; touch-action: pan-y; }
+.catalog .entries { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, 150px); grid-auto-rows: max-content; justify-content: center; gap: 14px; align-content: start; padding: 6px 4px 10px; touch-action: pan-y; }
 .entry { position: relative; display: grid; justify-items: center; gap: 4px; padding: 6px 6px 8px; background: var(--cream); color: var(--ink); border: 3px solid var(--ink); border-radius: 14px; box-shadow: 4px 4px 0 #170e0d; }
 .entry .cat-pic { border: 3px solid var(--ink); border-radius: 10px; }
 .entry .nm { font: 700 15px/1.1 var(--word); text-align: center; }
@@ -357,7 +357,7 @@ button.herder:active { transform: translate(2px, 2px); }
 
 /* ------------------------------------------------------------------ the results of a run */
 .results {
-  position: absolute; right: var(--sr); top: calc(var(--rt) + 70px); bottom: 14px; width: min(430px, 44vw); overflow-y: auto; touch-action: pan-y;
+  position: absolute; right: var(--sr); top: calc(var(--rt) + 70px); max-height: calc(100% - var(--rt) - 84px); width: min(430px, 44vw); overflow-y: auto; touch-action: pan-y;
   background: var(--cream); color: var(--ink); border: 3px solid var(--ink); border-radius: 18px; box-shadow: 6px 6px 0 var(--ink);
   padding: 16px 18px 14px; display: flex; flex-direction: column; gap: 10px;
 }
@@ -409,13 +409,14 @@ button.herder:active { transform: translate(2px, 2px); }
 .newcats .nf .cat-pic { border: 2px solid var(--cream); }
 .newcats .nf.rare .cat-pic { border-color: var(--gold); box-shadow: 0 0 12px rgba(246, 185, 65, 0.8); }
 .newcats .fn { font: 700 12px/1 var(--word); }
+.pagedone { display: flex; align-items: center; gap: 8px; font: 700 16px/1 var(--word); color: var(--gold); animation: starIn 0.45s cubic-bezier(0.3, 1.6, 0.5, 1); }
 .results .tops { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; font: 700 15px/1.3 var(--word); }
 .results .tops:empty { display: none; }
 .results .tops .th { grid-column: 1 / -1; font: 700 13px/1 var(--word); color: #6b5550; margin-bottom: 2px; }
 .results .tops .tr { display: contents; }
 .results .tops .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .results .tops .num { font-size: 18px; }
-.results .acts { display: flex; gap: 10px; margin-top: auto; padding-top: 4px; }
+.results .acts { display: flex; gap: 10px; padding-top: 4px; }
 .results .acts .btn { flex: 1; min-width: 0; padding: 0 12px; }
 .xptoast { position: absolute; left: 50%; top: calc(var(--ct) + 74px); translate: -50% 0; display: flex; align-items: center; gap: 8px; background: var(--ink); border-radius: 999px; padding: 6px 16px 6px 8px; font-size: 26px; white-space: nowrap; }
 .xptoast .up { font: 900 18px/1 var(--word); color: var(--gold); }
@@ -433,9 +434,9 @@ button.herder:active { transform: translate(2px, 2px); }
   #lobby .ticket .val { grid-row: 3; grid-column: 1; font-size: 26px; }
   #lobby .ticket .val svg { width: 24px !important; height: 22px !important; }
   #book header, #wardrobe header, #catalog header { padding-left: calc(var(--sx) + 4px); padding-top: var(--lt); }
-  #book .body { flex-direction: column; overflow-y: auto; touch-action: pan-y; padding-bottom: 24px; }
-  #book .side, #book .grid { width: auto; overflow: visible; padding-bottom: 0; }
-  #book .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); flex: none; }
+  #book > .body { flex-direction: column; overflow-y: auto; touch-action: pan-y; padding-bottom: 24px; }
+  #book > .body > .side, #book > .body > .grid { width: auto; overflow: visible; padding-bottom: 0; }
+  #book > .body > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); flex: none; }
   .wardrobe { left: var(--sx); right: var(--sr); top: auto; height: 48vh; width: auto; }
   .wardrobe .items { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
   .trying { bottom: calc(48vh + 30px); }
@@ -471,14 +472,15 @@ button.herder:active { transform: translate(2px, 2px); }
   #book header, #wardrobe header, #catalog header { padding-top: 8px; padding-bottom: 4px; }
   #book header h2, #wardrobe header h2, #catalog header h2 { font-size: 28px; }
   #book header .btn, #wardrobe header .btn, #catalog header .btn { min-height: 44px; }
-  #book .side { width: 300px; gap: 8px; }
-  #book .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  #book > .body > .side { width: 300px; gap: 8px; }
+  #book > .body > .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .appt .img { height: 92px; }
   .goals { padding: 8px 10px; gap: 4px; }
   .daily { min-height: 110px; }
   .appt .n { font-size: 34px; }
   .wardrobe { top: 60px; bottom: 8px; padding: 8px; gap: 8px; }
   .tab { min-height: 40px; font-size: 15px; }
-  .results { top: calc(var(--rt) + 54px); bottom: 8px; padding: 10px 14px; gap: 7px; }
+  .results { top: calc(var(--rt) + 54px); max-height: calc(100% - var(--rt) - 62px); padding: 10px 14px; gap: 7px; }
   .results .rh h2 { font-size: 28px; }
   .results .big .v { font-size: 44px; }
   .stars3 .sock { width: 50px; height: 50px; }

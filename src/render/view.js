@@ -204,20 +204,21 @@ export function createView(stage, { onStamp = null } = {}) {
       }
       case 'ding': {
         onStamp?.('ding', e.x, 1.6, e.z, {});
-        sfx.chime();
+        sfx.doorKnock();
         break;
       }
       case 'bell': {
         fx.wave(e.x, e.z, 6, 0.9, '#ff6a55');
         stage.shake(0.2);
         onStamp?.('bell', e.x, 1.6, e.z, {});
-        setTimeout(() => sfx.hiss(), 160);
+        sfx.doorbell();
+        setTimeout(() => sfx.hiss(), 700);
         break;
       }
       case 'ride': { sfx.mrrp(pitch * 0.9); if (c) onStamp?.('ride', c.x, 1.0, c.z, {}); break; }
       case 'boxsit': { sfx.mrrp(pitch * 1.1); break; }
       case 'nap': { sfx.purr(); break; }
-      case 'vbump': { sfx.knock(); break; }
+      case 'vbump': { sfx.tin(); break; }
       case 'bump': {
         v.carriers[e.ki]?.bump();
         sfx.knock();

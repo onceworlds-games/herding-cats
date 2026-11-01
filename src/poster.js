@@ -124,7 +124,7 @@ const SCENES = {
   card(view, stage, name) {
     const id = name.slice(5);
     const setup = id === 'catlady' ? catladySetup() : levelSetup(Number(id)) ?? levelSetup(1);
-    const g = createGame({ room: setup.room, mode: 'level', cats: setup.cats, seed: 5, clock: 120, twists: setup.level?.twists });
+    const g = createGame({ room: setup.room, mode: 'level', cats: setup.cats, seed: 5, clock: 120, twists: setup.twists });
     if (id === 'catlady') {
       const rng = { s: 23, next() { this.s = (this.s * 16807) % 2147483647; return this.s / 2147483647; } };
       const coats = ['ginger', 'tuxedo', 'calico', 'grey', 'tortie', 'black', 'white', 'siamese', 'cow', 'silver'];
@@ -136,7 +136,13 @@ const SCENES = {
       }
     }
     view.show(g, { people: [], me: -1, total: 'solo' });
-    return { camera() { stage.frame(null, { snap: true }); stage.update(0); } };
+    // close enough to see the cats: the middle of the cats and the carrier, the room filling the card
+    const k = g.carriers[0];
+    const pts = [...g.cats.map((c) => ({ x: c.x, z: c.z })), ...(k ? [{ x: k.x, z: k.z }, { x: k.x, z: k.z }] : [])];
+    const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length;
+    const cz = pts.reduce((a, p) => a + p.z, 0) / pts.length;
+    const span = Math.max(7, Math.min(10.5, Math.min(g.room.w, g.room.d) * 0.68));
+    return { camera() { stage.look(cx, cz, span); stage.update(0); } };
   },
   // a look at one room (?poster=room&room=studio&x=6&z=4&span=9): a few cats about, the person by the door
   room(view, stage) {

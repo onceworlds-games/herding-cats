@@ -222,6 +222,7 @@ export function finishRun(p, run, day) {
     add(n === 1 ? 'New star' : `${n} new stars`, n * XP.star);
     if (challengeDone && !(rep.newStars & STAR.challenge)) add('Challenge', XP.challenge);
     if (rep.newRosette) add('Expert time', XP.rosette);
+    if (rep.newBest && rep.prevBest != null) add('Personal best', XP.best);
   }
   if (run.kind === 'catlady' && mine > p.catLady) p.catLady = mine;
   if (run.kind === 'round') add('Round played', XP.round);

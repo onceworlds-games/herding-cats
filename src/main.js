@@ -27,7 +27,7 @@ import { createView } from './render/view.js';
 import { makeCarrier } from './render/carriers.js';
 import { createGame, addPerson, step, treats, clap, loose } from './sim/game.js';
 import { createBrain, think } from './sim/brain.js';
-import { levelSetup, LEVELS, INTROS, catladySetup } from './sim/levels.js';
+import { levelSetup, LEVELS, INTROS, TWIST_INTROS, catladySetup } from './sim/levels.js';
 import { ROOMS } from './sim/rooms.js';
 import { STEP, S, CATLADY, ROUND, SEATS, COMBO } from './sim/tuning.js';
 import { soonIn } from './sim/motion.js';
@@ -321,7 +321,10 @@ async function boot() {
         juiceHit('knock', x, z);
         break;
       case 'ding':
-        stampAt(stampLayer, 'Ding dong', p.x, p.y, { gold: true, cls: 'small', life: 1500, reducedMotion: rm });
+        stampAt(stampLayer, 'Knock knock', p.x, p.y, { cls: 'small', life: 1300, reducedMotion: rm });
+        break;
+      case 'bell':
+        stampAt(stampLayer, 'Ding dong!', p.x, p.y - 20, { gold: true, life: 1300, reducedMotion: rm });
         break;
       case 'ride':
         stampAt(stampLayer, 'All aboard', p.x, p.y, { cls: 'small', life: 900, reducedMotion: rm });
@@ -559,7 +562,7 @@ async function boot() {
     const fresh = save.progress.fresh.length > 0;
     more.append(
       button('Wardrobe', { cls: `live${fresh ? ' dot' : ''}`, onClick: () => { sfx.tap(); showWardrobe(); } }),
-      button('Cat-alog', { cls: 'live', onClick: () => { sfx.tap(); showCatalog(); } }),
+      button('Cat-alog', { cls: 'live', onClick: () => { sfx.bookOpen(); showCatalog(); } }),
     );
     more.querySelector('.btn').insertAdjacentHTML('afterbegin', icon('hanger', { size: 24 }));
     more.querySelectorAll('.btn')[1].insertAdjacentHTML('afterbegin', icon('catalog', { size: 24 }));
@@ -617,9 +620,9 @@ async function boot() {
       const old = root.querySelector('.wardrobe');
       const panel = wardrobePanel({
         owned: save.owned(), wearing: save.wearing(), fresh: save.progress.fresh, tab: app.wardTab, picked: app.dress?.trying ?? null,
-        onTab: (k) => { sfx.tap(); app.wardTab = k; tryOn(null); draw(); },
-        onPick: (it) => { sfx.tap(); tryOn(it); draw(); },
-        onWear: (it) => { sfx.chime(); save.wear(it.id); syncLooks(); tryOn(null); draw(); },
+        onTab: (k) => { sfx.toggle(); app.wardTab = k; tryOn(null); draw(); },
+        onPick: (it) => { sfx.cloth(); tryOn(it); draw(); },
+        onWear: (it) => { sfx.cloth(); sfx.chime(); save.wear(it.id); syncLooks(); tryOn(null); draw(); },
       });
       if (old) old.replaceWith(panel); else root.appendChild(panel);
       const t = app.dress?.trying;
@@ -694,7 +697,9 @@ async function boot() {
       p.x += (d.home.x - p.x) * Math.min(1, dt * 4);
       p.z += (d.home.z - p.z) * Math.min(1, dt * 4);
       p.sp = 0;
-      p.h += (((Math.PI * 0.75 - p.h + Math.PI) % (Math.PI * 2)) - Math.PI) * Math.min(1, dt * 5);
+      // a three-quarter view, turned to the camera
+      const want = Math.PI * 0.25 + 0.45;
+      p.h += ((((want - p.h + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI) * Math.min(1, dt * 5);
     }
     if (tab === 'clap') {
       d.clapT -= dt;
@@ -705,14 +710,14 @@ async function boot() {
       }
     }
     const k = d.g.carriers[0];
-    if (tab === 'carrier') besidePanel(k.x + k.nx * 0.6, k.z + k.nz * 0.6, 3.6);
-    else besidePanel(p.x, p.z, tab === 'trail' ? 5.2 : 3.4);
+    if (tab === 'carrier') besidePanel(k.x + k.nx * 0.6, k.z + k.nz * 0.6, 3.8);
+    else besidePanel(d.home.x, d.home.z, tab === 'trail' ? 5.6 : 4.4, 0.16);
   }
 
   /** Frame (x, z) beside the panel on the right (landscape) or above the sheet at the bottom (portrait). */
-  function besidePanel(x, z, span) {
+  function besidePanel(x, z, span, lift = 0) {
     const wide = innerWidth > innerHeight;
-    stage.aim(x, z, span, wide ? -0.2 : 0, wide ? 0 : 0.26);
+    stage.aim(x, z, span, wide ? -0.2 : 0, (wide ? 0 : 0.26) - lift);
   }
 
   // ---------- the Cat-alog
@@ -731,7 +736,7 @@ async function boot() {
     head.innerHTML = `<h2 class="ink">Cat-alog</h2><span class="total num ink">${all}/${of}</span>`;
     head.appendChild(button('Back', { cls: 'live', key: 'Esc', onClick: () => { sfx.tap(); showBook(); } }));
     const owned = save.owned();
-    const panel = catalogPanel(save.progress.book, page, { onPage: (i) => { sfx.tap(); showCatalog(i); }, rewardOwned: owned.has(PAGES[page].reward) });
+    const panel = catalogPanel(save.progress.book, page, { onPage: (i) => { sfx.page(); showCatalog(i); }, rewardOwned: owned.has(PAGES[page].reward) });
     root.append(head, panel);
     ui.appendChild(root);
     app.backAction = () => { sfx.tap(); showBook(); };
@@ -880,7 +885,7 @@ async function boot() {
 
   /** An appointment (n), or the Daily when `daily` is today's setup (dailySetup). */
   function startLevel(n, { auto = false, daily = null } = {}) {
-    const setup = daily ? { level: daily, room: daily.room, cats: daily.cats } : levelSetup(n);
+    const setup = daily ? { level: daily, room: daily.room, cats: daily.cats, twists: daily.twists } : levelSetup(n);
     if (!setup) return;
     leaveScene();
     clearUI();
@@ -888,12 +893,12 @@ async function boot() {
     const tries = (app.tries = (app.tries ?? 0) + 1);
     // the Daily is the same room and cats for everyone; its coats, like every try, are rolled fresh
     const seed = daily ? daily.day * 13 + tries : n * 101 + tries;
-    const g = createGame({ room: setup.room, mode: 'level', cats: setup.cats, seed, clock: L.closes, twists: daily ? daily.twists : L.twists });
+    const g = createGame({ room: setup.room, mode: 'level', cats: setup.cats, seed, clock: L.closes, twists: setup.twists });
     const me = addPerson(g, { id: 'me' });
     app.run = {
       kind: daily ? 'daily' : 'level', n, L, g, me, acc: 0, introT: 2.4, over: false, overT: 0, paused: false, auto,
       brain: auto ? createBrain({ skill: 1, seed: (n || 3) * 7 + 3 }) : null,
-      introCat: !daily && L.intro ? g.cats.find((c) => c.type === L.intro) : null, hintStage: daily ? 9 : 0, lastCount: 0, closeTicks: 0,
+      introCat: daily ? null : L.intro ? g.cats.find((c) => c.type === L.intro) : L.introTwist ? twistFocus(g, L.introTwist) : null, hintStage: daily ? 9 : 0, lastCount: 0, closeTicks: 0,
       chState: 0, newCoats: new Set(),
     };
     app.scene = 'run';
@@ -905,7 +910,17 @@ async function boot() {
     buildSoloHud();
     sfx.setMusic('play', { seed: daily ? daily.day : n });
     sfx.clank();
-    if (app.run.introCat) setTimeout(() => sfx.meow(1, 0.45, 0.16), 300);
+    if (app.run.introCat?.type) setTimeout(() => sfx.meow(1, 0.45, 0.16), 300);
+  }
+
+  /** Something for the camera and the intro tag to follow: a twist's first appearance. */
+  function twistFocus(g, t) {
+    const at = t === 'laser' ? () => ({ x: g.laser?.hx ?? 0, z: g.laser?.hz ?? 0 })
+      : t === 'vacs' ? () => g.vacs[0] ?? { x: 0, z: 0 }
+        : t === 'boxes' ? () => g.boxes[0] ?? { x: 0, z: 0 }
+          : () => ({ x: g.bell?.x ?? 0, z: (g.bell?.z ?? 0) - 1.5 });
+    if (t === 'laser' && !g.laser) return null;
+    return { twist: t, y: 0, get x() { return at().x; }, get z() { return at().z; } };
   }
 
   function startCatLady({ auto = false } = {}) {
@@ -1066,7 +1081,7 @@ async function boot() {
           const at = stage.toScreen(k.matX, 1.2, k.matZ);
           setTimeout(() => {
             stampAt(stampLayer, rare >= 2 ? `${COAT_INFO[c.coat].name}!` : `New: ${COAT_INFO[c.coat].name}`, Math.max(140, Math.min(innerWidth - 140, at.x)), Math.max(120, at.y - 110), { gold: rare >= 1, cls: 'small', life: 1500, reducedMotion: reduced() });
-            if (rare >= 2) { sfx.chime(); view.hints.sparkle(k.matX, 0.8, k.matZ, 16); }
+            if (rare >= 2) { sfx.rare(); view.hints.sparkle(k.matX, 0.8, k.matZ, 16); } else sfx.page();
           }, 380);
         }
       }
@@ -1080,6 +1095,7 @@ async function boot() {
       if (shown !== hud.shown) { hud.countV.textContent = shown; hud.shown = shown; }
       const left = g.clock ?? 99;
       sfx.setTense(left <= 30 && g.started && !g.over);
+      sfx.setFill(r.kind === 'catlady' ? Math.min(1, g.boxed / 20) : g.boxed / Math.max(1, g.total));
       const sec = Math.ceil(left);
       if (g.started && !g.over && sec <= 30 && sec !== r.lastTick) { r.lastTick = sec; sfx.tick(sec <= 10); }
     }
@@ -1100,7 +1116,7 @@ async function boot() {
     // camera: the run, then the full carrier beside the results
     if (r.shown) {
       const k = g.carriers[0];
-      besidePanel(k.x + k.nx * 0.5, k.z + k.nz * 0.5, 3.4);
+      besidePanel(k.x + k.nx * 0.6, k.z + k.nz * 0.6, 5);
     } else {
       const focus = r.introCat && r.introT > 0 ? r.introCat : r.me;
       stage.frame(focus, { follow: followSpan(), zoom: r.introCat && r.introT > 0 ? 0.8 : 1 });
@@ -1144,7 +1160,7 @@ async function boot() {
   function soloHints(r) {
     const g = r.g;
     if (r.introT > 0 && r.introCat) {
-      const info = INTROS[r.introCat.type];
+      const info = r.introCat.twist ? TWIST_INTROS[r.introCat.twist] : INTROS[r.introCat.type];
       if (info) tag('intro', `<span class="big">${esc(info.name)}</span><span style="color:#f6b941">${esc(info.tip)}</span>`, r.introCat.x, 1.4 + (r.introCat.y || 0), r.introCat.z, 'float big ink');
       return;
     }
@@ -1208,7 +1224,7 @@ async function boot() {
     const kind = r.kind;
     const before = kind === 'level' ? (save.progress.levels[r.n]?.s ?? 0) : kind === 'daily' && save.progress.daily.day === r.L.day ? save.progress.daily.s : 0;
     const prevShift = save.progress.catLady;
-    const rep = r.auto ? null : save.finish({ kind, L: r.L, result: res, mine: g.boxed, cats: boxedCats(g), day: kind === 'daily' ? r.L.day : undefined });
+    const rep = r.auto && !params.has('demo') ? null : save.finish({ kind, L: r.L, result: res, mine: g.boxed, cats: boxedCats(g), day: kind === 'daily' ? r.L.day : undefined });
     if (rep) syncLooks();
     const acts = [];
     const L = r.L;
@@ -1232,7 +1248,7 @@ async function boot() {
         rosette: res.allIn && res.time <= L.expert, newRosette: !!rep?.newRosette, newBest: !!rep?.newBest && rep.prevBest != null,
       };
       const best = kind === 'level' ? save.progress.levels[r.n]?.best : save.progress.daily.time;
-      if (best) o.lines.push(['Best', fmtTime(best)]);
+      if (best && !o.newBest) o.lines.push(['Best', fmtTime(best)]);
       const hasNext = kind === 'level' && res.allIn && r.n < LEVELS.length;
       if (hasNext) {
         acts.push(button('Next', { cls: 'red', key: 'Enter', onClick: () => startLevel(r.n + 1) }), button('Retry', { key: 'R', onClick: () => retry() }));
@@ -1448,6 +1464,7 @@ async function boot() {
     const left = g.clock ?? 99;
     if (src.phase === 'round') {
       sfx.setTense(left <= 30);
+      sfx.setFill(g.boxed / Math.max(1, g.total));
       const sec = Math.ceil(left);
       if (sec <= 30 && sec !== hud.lastTick && !g.over) { hud.lastTick = sec; sfx.tick(sec <= 10); }
     }
@@ -1849,8 +1866,8 @@ function demoProgress() {
   for (const t of ['moggy', 'loaf', 'glutton', 'zoomer', 'scaredy', 'kitten']) p.book.types[t] = 3 + t.length;
   for (const c of ['ginger', 'grey', 'tuxedo', 'calico', 'black', 'white', 'silver', 'cow', 'panda']) p.book.coats[c] = 2 + c.length;
   p.daily = { last: save.today() - 1, streak: 4, best: 6, day: null, time: null, s: 0 };
-  p.fresh = ['hat:party'];
-  p.wear = { hat: 'hat:party', carrier: 'carrier:dots', clap: 'clap:hearts', trail: 'trail:paws' };
+  p.fresh = ['hat:bucket', 'clap:hearts'];
+  p.wear = { hat: 'hat:bucket', carrier: 'carrier:teal', clap: 'clap:hearts', trail: 'trail:paws' };
 }
 
 function hashId(id) {

@@ -10,7 +10,8 @@ const overlapsAny = (world, p) => overlaps(world, p.x, p.z, 0.8);
 const c = (type, coat, x, z, extra = {}) => ({ type, coat, x, z, ...extra });
 
 // par / expert are seconds, set from the herder's runs (test/levels.test.mjs); closes is the vet's closing time.
-// `intro` names the cat a level introduces.
+// `intro` names the cat a level introduces, `introTwist` the twist. `twists` (placed by levelSetup, the same every try):
+// laser: { delay } (the pointer turns up after `delay` s), vacs: how many robot vacuums, bell: { every, first } s, boxes: how many.
 export const LEVELS = [
   { n: 1, name: 'Two Lazy Cats', room: 'studio', challenge: 'double', closes: 120, par: 25, expert: 15, hint: 'push',
     cats: [c('moggy', 'ginger', 6.5, 6.5), c('moggy', 'tuxedo', 10, 8.5), c('moggy', 'grey', 3.6, 1.6, { surprise: true })] },
@@ -28,25 +29,25 @@ export const LEVELS = [
     cats: [c('moggy', 'calico', 8, 9), c('kitten', 'calico', 9, 10.2), c('kitten', 'ginger', 7.4, 10.4), c('kitten', 'white', 9.4, 8.3)] },
   { n: 8, name: 'The Boss', room: 'garden', challenge: 'boss', closes: 150, par: 50, expert: 25, intro: 'boss',
     cats: [c('boss', 'grey', 15, 11.6), c('moggy', 'black', 14, 14.8, { gang: 0 }), c('moggy', 'tuxedo', 16.6, 10.6, { gang: 0 }), c('moggy', 'black', 13.4, 10.9, { gang: 0 }), c('moggy', 'ginger', 6, 11)] },
-  { n: 9, name: 'Cat Café', room: 'cafe', challenge: 'nocrash', closes: 180, par: 85, expert: 35,
+  { n: 9, name: 'Cat Café', room: 'cafe', challenge: 'laser', closes: 180, par: 80, expert: 45, introTwist: 'laser', twists: { laser: { delay: 6 } },
     cats: [c('moggy', 'ginger', 9, 8), c('moggy', 'tuxedo', 15, 13), c('loaf', 'white', 11, 12.5), c('glutton', 'tortie', 19, 16.8),
       c('zoomer', 'black', 16, 7.8), c('scaredy', 'siamese', 4, 15.2), c('kitten', 'ginger', 9.6, 8.7), c('kitten', 'calico', 8.4, 8.8)] },
-  { n: 10, name: 'Quiet Please', room: 'library', challenge: 'bank', closes: 180, par: 105, expert: 60,
+  { n: 10, name: 'Quiet Please', room: 'library', challenge: 'bank', closes: 180, par: 90, expert: 50, introTwist: 'bell', twists: { bell: { every: 30, first: 24 } },
     cats: [c('scaredy', 'siamese', 17, 8.6), c('scaredy', 'white', 8, 11.5), c('loaf', 'grey', 14.5, 11), c('zoomer', 'black', 8, 6.2),
       c('moggy', 'ginger', 14, 15.6), c('moggy', 'tuxedo', 5.5, 15.4)] },
-  { n: 11, name: 'Moving Day', room: 'movingday', challenge: 'double', closes: 180, par: 85, expert: 45,
+  { n: 11, name: 'Moving Day', room: 'movingday', challenge: 'box', closes: 180, par: 75, expert: 40, introTwist: 'boxes', twists: { boxes: 3 },
     cats: [c('moggy', 'ginger'), c('moggy', 'grey'), c('scaredy', 'white'), c('zoomer', 'black'), c('glutton', 'calico'),
       c('kitten', 'ginger'), c('kitten', 'grey')] },
-  { n: 12, name: 'All Aboard', room: 'boat', challenge: 'banks2', closes: 180, par: 80, expert: 45,
+  { n: 12, name: 'All Aboard', room: 'boat', challenge: 'ride', closes: 180, par: 75, expert: 40, introTwist: 'vacs', twists: { vacs: 1 },
     cats: [c('zoomer', 'black'), c('zoomer', 'white'), c('moggy', 'ginger'), c('moggy', 'tuxedo'), c('moggy', 'calico'), c('moggy', 'grey'),
       c('loaf', 'tortie'), c('kitten', 'ginger')] },
-  { n: 13, name: 'Greenhouse', room: 'greenhouse', challenge: 'boss', closes: 180, par: 55, expert: 25,
+  { n: 13, name: 'Greenhouse', room: 'greenhouse', challenge: 'boss', closes: 180, par: 75, expert: 30, twists: { laser: { delay: 20 } },
     cats: [c('boss', 'black', 16.5, 10), c('moggy', 'grey', 17.5, 11.4, { gang: 0 }), c('moggy', 'black', 15.4, 11.4, { gang: 0 }),
       c('moggy', 'tuxedo', 16.6, 12.6, { gang: 0 }), c('glutton', 'ginger'), c('kitten', 'calico'), c('kitten', 'white'), c('moggy', 'calico')] },
-  { n: 14, name: 'Rooftop', room: 'rooftop', challenge: 'triple', closes: 210, par: 115, expert: 60,
+  { n: 14, name: 'Rooftop', room: 'rooftop', challenge: 'banks2', closes: 210, par: 115, expert: 60, twists: { vacs: 1, bell: { every: 34, first: 30 } },
     cats: [c('moggy', 'ginger'), c('moggy', 'grey'), c('moggy', 'tuxedo'), c('moggy', 'black'), c('loaf', 'white'), c('zoomer', 'calico'),
       c('scaredy', 'siamese'), c('glutton', 'tortie'), c('kitten', 'ginger'), c('kitten', 'black')] },
-  { n: 15, name: 'Closing Time', room: 'flat', challenge: 'nocrash', closes: 270, par: 140, expert: 90,
+  { n: 15, name: 'Closing Time', room: 'flat', challenge: 'nocrash', closes: 270, par: 150, expert: 80, twists: { laser: { delay: 30 } },
     cats: [c('boss', 'grey', 20, 15), c('moggy', 'black', 21.2, 16.4, { gang: 0 }), c('moggy', 'tuxedo', 18.8, 16.4, { gang: 0 }),
       c('moggy', 'ginger'), c('loaf', 'white'), c('zoomer', 'black'), c('scaredy', 'siamese'), c('glutton', 'tortie'),
       c('kitten', 'ginger')] },
@@ -59,6 +60,14 @@ export const INTROS = {
   scaredy: { name: 'Scaredy', tip: "Don't clap!" },
   kitten: { name: 'Kitten', tip: 'Follows a cat' },
   boss: { name: 'Boss', tip: 'The gang follows' },
+};
+
+/** The twists' first appearances, like the cats'. */
+export const TWIST_INTROS = {
+  laser: { name: 'Laser pointer', tip: 'Grab it: cats chase the dot' },
+  vacs: { name: 'Robot vacuum', tip: 'Cats flee it. Some ride it' },
+  bell: { name: 'Doorbell', tip: 'Knock knock, then everyone scatters' },
+  boxes: { name: 'Boxes', tip: 'A cat inside goes where you push' },
 };
 
 /** The cats of a level, placed: random spots are seeded by the level so every try starts the same. */
@@ -86,7 +95,34 @@ export function levelSetup(n) {
     out.h = rng.range(-Math.PI, Math.PI);
     return out;
   });
-  return { level: L, room, cats };
+  return { level: L, room, cats, twists: placeTwists(L.twists, world, rng, room, placed) };
+}
+
+/** Where a level's twists start: clear floor away from the door and the cats, the same every try. */
+function placeTwists(spec, world, rng, room, cats) {
+  if (!spec) return undefined;
+  const away = [{ x: room.entry.x, z: room.entry.z, r: 3 }, ...room.carriers.map((k) => ({ x: k.x, z: k.z, r: 3 })), ...cats.map((q) => ({ ...q, r: 1.5 }))];
+  const out = {};
+  if (spec.laser) {
+    const p = freeSpot(world, rng, { margin: 2.5, avoid: away });
+    out.laser = { x: p.x, z: p.z, delay: spec.laser.delay ?? 10 };
+  }
+  if (spec.vacs) {
+    out.vacs = [];
+    for (let i = 0; i < spec.vacs; i++) {
+      const p = freeSpot(world, rng, { margin: 2, avoid: [...away, ...out.vacs.map((q) => ({ ...q, r: 3 }))] });
+      out.vacs.push({ x: p.x, z: p.z, h: rng.range(-Math.PI, Math.PI) });
+    }
+  }
+  if (spec.bell) out.bell = { every: spec.bell.every ?? 30, first: spec.bell.first ?? 25 };
+  if (spec.boxes) {
+    out.boxes = [];
+    for (let i = 0; i < spec.boxes; i++) {
+      const p = freeSpot(world, rng, { margin: 1.6, avoid: [...away, ...out.boxes.map((q) => ({ ...q, r: 3 }))] });
+      out.boxes.push({ x: p.x, z: p.z });
+    }
+  }
+  return out;
 }
 
 /** A versus or together round: room, carriers and cats, the same on every page from the match seed. */

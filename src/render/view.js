@@ -333,7 +333,11 @@ export function createView(stage, { onStamp = null } = {}) {
       view.lastZ = q.z;
     });
     v.drawn = proxies;
-    v.room?.update(t, dt);
+    // cats and people kick the toys on the floor along
+    movers.length = 0;
+    for (const c of g.cats) if (c.st !== S.boxed && c.st !== S.enter && c.st !== S.hidden && !(c.y > 0.05)) movers.push({ x: c.x, z: c.z, r: 0.24 * (c.size || 1), sp: c.sp ?? 0 });
+    for (const q of proxies) if (q && q.active !== false) movers.push({ x: q.x, z: q.z, r: 0.28, sp: q.sp ?? 0 });
+    v.room?.update(t, dt, movers, stage.camera);
     twists.update(dt, t, proxies, opts.reducedMotion);
     guides.update(g, { me: opts.guides === false ? null : me, clapReady: !!me && me.clapCd <= 0, t, reduced: opts.reducedMotion });
     fx.update(dt, t);
@@ -400,6 +404,7 @@ export function createView(stage, { onStamp = null } = {}) {
   const proxies = [];
   let hasPrev = false;
   let kickT = 0;
+  const movers = [];
   let glintT = 0;
   v.capture = () => {
     const g = v.g;

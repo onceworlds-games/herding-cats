@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { KIT } from '../sim/kit.js';
+import { KIT, footprint } from '../sim/kit.js';
 import { kitModel, kitSurface, surface } from './assets.js';
 import { SUN_DIR } from './stage.js';
 import { roomWindows, isOutdoor, SILL, WIN_TOP, WIN_W } from '../sim/sun.js';
@@ -741,6 +741,391 @@ function propMesh(kind, ci) {
   return g;
 }
 
+// ---------------------------------------------------------------- the things cats leave about
+// Bowls, toys, a bed, a scratching post, slippers by the door, pots and a watering can outside: drawn only (cats walk
+// over them), placed from the room's id so a room always looks the same.
+function yarnTexture(color) {
+  return mat(`yarn:${color}`, () => {
+    const t = canvasTex(128, 64, (g, w, h) => {
+      g.fillStyle = color; g.fillRect(0, 0, w, h);
+      g.strokeStyle = shade(color, -0.13); g.lineWidth = 3;
+      for (let i = 0; i < 14; i++) { g.beginPath(); g.moveTo(i * 10 - 20, 0); g.lineTo(i * 10 + 10, h); g.stroke(); }
+      g.strokeStyle = shade(color, 0.12); g.lineWidth = 2;
+      for (let i = 0; i < 14; i++) { g.beginPath(); g.moveTo(i * 10 + 30, 0); g.lineTo(i * 10, h); g.stroke(); }
+    });
+    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.95 });
+  });
+}
+function plaidTexture(color) {
+  return mat(`plaid:${color}`, () => {
+    const t = canvasTex(64, 64, (g, w, h) => {
+      g.fillStyle = color; g.fillRect(0, 0, w, h);
+      g.fillStyle = shade(color, -0.14); g.globalAlpha = 0.55;
+      for (let i = 0; i < w; i += 16) { g.fillRect(i, 0, 6, h); g.fillRect(0, i, w, 6); }
+      g.fillStyle = shade(color, 0.3); g.globalAlpha = 0.6;
+      for (let i = 10; i < w; i += 16) { g.fillRect(i, 0, 1.5, h); g.fillRect(0, i, w, 1.5); }
+    });
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(2, 2);
+    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.97 });
+  });
+}
+/** A braided rag rug: many narrow rings, mostly the main colour with its neighbours mixed in, each ring twisted. */
+function braidTexture(cols) {
+  return mat(`braid:${cols.join()}`, () => canvasTex(256, 256, (g, w) => {
+    const c = w / 2;
+    let seed = hashStr(cols.join()) || 1;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    g.fillStyle = shade(cols[0], -0.25); g.fillRect(0, 0, w, w);
+    const band = 6.4;
+    let last = -1;
+    for (let r = c - 1, i = 0; r > 3; r -= band, i++) {
+      // the outer two rings in the edge colour, then a weighted mix
+      let k = i < 2 ? 3 : rnd() < 0.42 ? 0 : 1 + Math.floor(rnd() * (cols.length - 1));
+      if (k === last && i >= 2) k = (k + 1) % cols.length;
+      last = k;
+      const col = cols[k];
+      g.lineWidth = band - 0.6; g.strokeStyle = col;
+      g.beginPath(); g.arc(c, c, Math.max(1, r - band / 2), 0, Math.PI * 2); g.stroke();
+      g.lineWidth = 1.2; g.strokeStyle = shade(col, -0.16);
+      const n = Math.max(6, Math.round((r * Math.PI * 2) / 4.5));
+      const lean = i % 2 ? 0.06 : -0.06;
+      for (let j = 0; j < n; j++) {
+        const a = (j / n) * Math.PI * 2;
+        const r0 = r - band + 1, r1 = r - 1;
+        g.beginPath(); g.moveTo(c + Math.cos(a) * r0, c + Math.sin(a) * r0); g.lineTo(c + Math.cos(a + lean) * r1, c + Math.sin(a + lean) * r1); g.stroke();
+      }
+    }
+  }));
+}
+const BRAIDS = [
+  ['#d9a23a', '#c98a2e', '#efe2c8', '#9c5a2e', '#d98b86'],
+  ['#3f8a86', '#5c9c97', '#efe2c8', '#2a5f5c', '#d9a23a'],
+  ['#d98b86', '#c46e6a', '#efe2c8', '#8a4a68', '#e9bba8'],
+  ['#7fa276', '#93b38a', '#efe2c8', '#4f7448', '#d9a23a'],
+  ['#3f5d8c', '#5b7aa8', '#efe2c8', '#2f4a70', '#d98b86'],
+  ['#efe2c8', '#d9c7a4', '#c4473b', '#8c6a4a', '#3f8a86'],
+];
+const DECOR_GEO = {};
+const dgeo = (k, make) => (DECOR_GEO[k] ??= make());
+function decorPiece(kind, rng) {
+  const g = new THREE.Group();
+  const pick = (a) => a[Math.floor(rng() * a.length)];
+  if (kind === 'yarn') {
+    const col = pick(['#c4473b', '#3f8a86', '#f6b941', '#8c5bc4', '#5b87c5', '#e57fa6']);
+    const b = new THREE.Mesh(dgeo('ball', () => new THREE.SphereGeometry(0.11, 14, 10)), yarnTexture(col));
+    b.position.y = 0.105;
+    b.rotation.set(rng() * 3, rng() * 3, rng() * 3);
+    const tail = new THREE.Mesh(dgeo('strand', () => new THREE.TorusGeometry(0.22, 0.008, 4, 18, Math.PI * 0.9)), std(col, 0.9));
+    tail.rotation.x = -Math.PI / 2;
+    tail.position.set(0.2, 0.01, 0);
+    g.add(b, tail);
+  } else if (kind === 'mouse') {
+    const col = pick(['#9a8f86', '#d8c9b2', '#5b5452']);
+    const body = new THREE.Mesh(dgeo('mouseBody', () => new THREE.SphereGeometry(0.07, 10, 8)), std(col, 0.95));
+    body.scale.set(1.4, 0.75, 0.9);
+    body.position.y = 0.05;
+    const ear = dgeo('mouseEar', () => new THREE.CircleGeometry(0.03, 10));
+    for (const sgn of [-1, 1]) {
+      const e = new THREE.Mesh(ear, std('#e57fa6', 0.9));
+      e.position.set(0.05, 0.1, sgn * 0.03);
+      e.rotation.y = Math.PI / 2;
+      g.add(e);
+    }
+    const tail = new THREE.Mesh(dgeo('mouseTail', () => new THREE.TorusGeometry(0.08, 0.006, 4, 10, Math.PI)), std('#e57fa6', 0.9));
+    tail.rotation.x = -Math.PI / 2;
+    tail.position.set(-0.17, 0.02, 0.06);
+    g.add(body, tail);
+  } else if (kind === 'bowls') {
+    const prof = dgeo('bowl', () => new THREE.LatheGeometry([[0.0, 0], [0.13, 0], [0.16, 0.07], [0.15, 0.075], [0.11, 0.03], [0, 0.03]].map(([x, y]) => new THREE.Vector2(x, y)), 18));
+    const cols = pick([['#e5493a', '#5b87c5'], ['#3f8a86', '#f6b941'], ['#fff3df', '#e57fa6']]);
+    const a = new THREE.Mesh(prof, std(cols[0], 0.35));
+    const b = new THREE.Mesh(prof, std(cols[1], 0.35));
+    a.position.x = -0.19;
+    b.position.x = 0.19;
+    const kib = new THREE.Mesh(dgeo('kibble', () => new THREE.CircleGeometry(0.115, 14)), std('#a8672f', 0.9));
+    kib.rotation.x = -Math.PI / 2;
+    kib.position.set(-0.19, 0.055, 0);
+    const water = new THREE.Mesh(dgeo('kibble', () => new THREE.CircleGeometry(0.115, 14)), std('#8fc3d6', 0.05));
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(0.19, 0.05, 0);
+    const mat0 = new THREE.Mesh(dgeo('bowlMat', () => new RoundedBoxGeometry(0.8, 0.02, 0.42, 2, 0.01)), std(pick(['#f6b941', '#a9c2a0', '#e9bba8']), 0.9));
+    mat0.position.y = 0.01;
+    g.add(mat0, a, b, kib, water);
+  } else if (kind === 'bed') {
+    // a round pet bed: a plump bolster all round, a plaid cushion filling it
+    const col = pick(['#e57fa6', '#3f8a86', '#d9a23a', '#8c5bc4', '#c4473b']);
+    const rim = new THREE.Mesh(dgeo('bedRim', () => new THREE.TorusGeometry(0.3, 0.115, 12, 30)), std(col, 0.95));
+    rim.rotation.x = -Math.PI / 2;
+    rim.position.y = 0.1;
+    rim.scale.set(1, 1.12, 1.15);
+    const pad = new THREE.Mesh(dgeo('bedPad', () => new THREE.CylinderGeometry(0.3, 0.29, 0.1, 24)), plaidTexture(pick(['#f3e6cf', '#efe2c8', '#e9dcc8'])));
+    pad.scale.set(1, 1, 1.12);
+    pad.position.y = 0.09;
+    g.add(rim, pad);
+  } else if (kind === 'cushion') {
+    const col = pick(['#d9a23a', '#3f8a86', '#d98b86', '#7fa276', '#8a4a68']);
+    const c = new THREE.Mesh(dgeo('cushion', () => new RoundedBoxGeometry(0.56, 0.15, 0.56, 3, 0.07)), plaidTexture(col));
+    c.position.y = 0.075;
+    c.rotation.z = (rng() - 0.5) * 0.12;
+    const btn = new THREE.Mesh(dgeo('cushionBtn', () => new THREE.CylinderGeometry(0.03, 0.03, 0.02, 10)), std(shade(col, -0.18), 0.6));
+    btn.position.y = 0.155;
+    g.add(c, btn);
+  } else if (kind === 'wand') {
+    // a feather wand left on the floor
+    const stick = new THREE.Mesh(dgeo('wandStick', () => new THREE.CylinderGeometry(0.01, 0.012, 0.62, 6)), std('#d9b47a', 0.6));
+    stick.rotation.z = Math.PI / 2;
+    stick.position.set(-0.1, 0.012, 0);
+    const line = new THREE.Mesh(dgeo('wandLine', () => new THREE.TorusGeometry(0.12, 0.004, 3, 12, Math.PI)), std('#2b1d1c', 0.8));
+    line.rotation.x = -Math.PI / 2;
+    line.position.set(0.21, 0.01, 0.12);
+    g.add(stick, line);
+    const cols = pick([['#e5493a', '#f6b941', '#3f8a86'], ['#e57fa6', '#8c5bc4', '#fff3df'], ['#5b87c5', '#f6b941', '#e57fa6']]);
+    for (let i = 0; i < 3; i++) {
+      const f = new THREE.Mesh(dgeo('feather', () => new THREE.SphereGeometry(0.05, 8, 6)), std(cols[i], 0.9));
+      f.scale.set(2.4, 0.35, 0.8);
+      f.position.set(0.3 + i * 0.03, 0.02 + i * 0.012, 0.24 + (i - 1) * 0.05);
+      f.rotation.y = (i - 1) * 0.5;
+      g.add(f);
+    }
+  } else if (kind === 'post') {
+    const base = new THREE.Mesh(dgeo('postBase', () => new RoundedBoxGeometry(0.5, 0.06, 0.5, 2, 0.02)), std('#d8c9b2', 0.95));
+    base.position.y = 0.03;
+    const rope = new THREE.Mesh(dgeo('postRope', () => new THREE.CylinderGeometry(0.075, 0.075, 0.7, 12)), mat('rope', () => {
+      const t = canvasTex(32, 128, (c, w, h) => {
+        c.fillStyle = '#c9a26b'; c.fillRect(0, 0, w, h);
+        c.strokeStyle = '#9c7646'; c.lineWidth = 2;
+        for (let y = 0; y < h; y += 5) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y + 3); c.stroke(); }
+      });
+      return new THREE.MeshStandardMaterial({ map: t, roughness: 1 });
+    }));
+    rope.position.y = 0.41;
+    const top = new THREE.Mesh(dgeo('postTop', () => new RoundedBoxGeometry(0.34, 0.05, 0.34, 2, 0.02)), std('#d8c9b2', 0.95));
+    top.position.y = 0.78;
+    const toy = new THREE.Mesh(dgeo('postToy', () => new THREE.SphereGeometry(0.045, 10, 8)), std('#e5493a', 0.6));
+    toy.position.set(0.14, 0.58, 0);
+    const str = new THREE.Mesh(dgeo('postStr', () => new THREE.CylinderGeometry(0.004, 0.004, 0.17, 3)), std('#2b1d1c'));
+    str.position.set(0.14, 0.685, 0);
+    g.add(base, rope, top, toy, str);
+  } else if (kind === 'slippers') {
+    const col = pick(['#e57fa6', '#5b87c5', '#a9c2a0', '#d9a23a']);
+    const sl = dgeo('slipper', () => new RoundedBoxGeometry(0.13, 0.07, 0.3, 2, 0.03));
+    for (const sgn of [-1, 1]) {
+      const m = new THREE.Mesh(sl, std(col, 0.95));
+      m.position.set(sgn * 0.09, 0.035, sgn * 0.03);
+      m.rotation.y = sgn * 0.15;
+      g.add(m);
+    }
+  } else if (kind === 'books') {
+    for (let i = 0; i < 2 + Math.floor(rng() * 3); i++) {
+      const b = new THREE.Mesh(BOX, std(BOOKS[Math.floor(rng() * BOOKS.length)], 0.8));
+      b.scale.set(0.32 - i * 0.02, 0.055, 0.23);
+      b.position.y = 0.028 + i * 0.055;
+      b.rotation.y = (rng() - 0.5) * 0.6;
+      g.add(b);
+    }
+  } else if (kind === 'pot') {
+    const pot = new THREE.Mesh(dgeo('dpot', () => new THREE.CylinderGeometry(0.17, 0.12, 0.26, 14)), std(pick(POTS), 0.85));
+    pot.position.y = 0.13;
+    const leaf = std(rng() < 0.5 ? PAL.leaf : PAL.leafDark, 0.75);
+    for (let i = 0; i < 4; i++) {
+      const l = new THREE.Mesh(dgeo('dleaf', () => new THREE.IcosahedronGeometry(0.13, 0)), leaf);
+      l.position.set(Math.cos(i * 1.7) * 0.08, 0.32 + (i % 2) * 0.08, Math.sin(i * 1.7) * 0.08);
+      l.scale.y = 1.2;
+      g.add(l);
+    }
+    g.add(pot);
+  } else if (kind === 'can') {
+    const body = new THREE.Mesh(dgeo('canBody', () => new THREE.CylinderGeometry(0.12, 0.13, 0.26, 14)), std('#3f8a86', 0.4, 0.3));
+    body.position.y = 0.13;
+    const spout = new THREE.Mesh(dgeo('canSpout', () => new THREE.CylinderGeometry(0.018, 0.025, 0.32, 6)), std('#3f8a86', 0.4, 0.3));
+    spout.position.set(0.19, 0.2, 0);
+    spout.rotation.z = -0.9;
+    const handle = new THREE.Mesh(dgeo('canHandle', () => new THREE.TorusGeometry(0.08, 0.015, 5, 12, Math.PI)), std('#3f8a86', 0.4, 0.3));
+    handle.position.set(-0.02, 0.27, 0);
+    g.add(body, spout, handle);
+  } else if (kind === 'ball') {
+    const b = new THREE.Mesh(dgeo('bigball', () => new THREE.SphereGeometry(0.16, 16, 12)), std(pick(['#e5493a', '#5b87c5', '#f6b941']), 0.5));
+    b.position.y = 0.16;
+    const band = new THREE.Mesh(dgeo('ballBand', () => new THREE.TorusGeometry(0.16, 0.02, 6, 20)), std('#fff3df', 0.5));
+    band.position.y = 0.16;
+    band.rotation.set(rng() * 3, rng() * 3, 0);
+    g.add(b, band);
+  }
+  g.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+  return g;
+}
+
+function hashStr(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+/**
+ * The room's clutter, drawn only: braided rugs in the emptiest floor, bowls, beds and posts by the walls, toys about.
+ * Toys (yarn, mice, balls) get kicked along when a cat or a person runs through them. Returns { group, update, tidy }.
+ */
+function decorate(room, world, quality) {
+  const group = new THREE.Group();
+  const toys = [];
+  const none = { group, update() {}, tidy() {} };
+  if (quality === 'low' || room.decor === false) return none;
+  let a = hashStr(room.id ?? room.name ?? 'room') || 1;
+  const rng = () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const W = room.w, D = room.d;
+  const outdoor = isOutdoor(room);
+  const solids = world.solids.filter((s) => !s.flat);
+  const rugs = (room.items ?? []).filter((it) => KIT[it.k]?.flat && !KIT[it.k]?.water).map((it) => {
+    const f = footprint(it);
+    return { x0: it.x - f.w / 2, x1: it.x + f.w / 2, z0: it.z - f.d / 2, z1: it.z + f.d / 2 };
+  });
+  const placed = [];
+  const rectD = (x, z, r) => Math.hypot(Math.max(r.x0 - x, 0, x - r.x1), Math.max(r.z0 - z, 0, z - r.z1));
+
+  // ---- braided rugs where the floor is emptiest (not outside, not on the boat)
+  if (!outdoor && !room.sea) {
+    const roundRugs = [];
+    const room4 = (x, z) => {
+      let d = Math.min(x, z, W - x, D - z);
+      for (const s of solids) d = Math.min(d, rectD(x, z, s) + 0.25);
+      for (const r of rugs) d = Math.min(d, rectD(x, z, r) + 0.15);
+      for (const k of room.carriers ?? []) d = Math.min(d, Math.hypot(x - k.x, z - k.z) - 1.4);
+      if (room.entry) d = Math.min(d, Math.hypot(x - room.entry.x, z - room.entry.z) - 0.8);
+      for (const r of roundRugs) d = Math.min(d, Math.hypot(x - r.x, z - r.z) - r.r - 0.5);
+      return d;
+    };
+    const want = W * D > 340 ? 3 : W * D > 180 ? 2 : 1;
+    for (let n = 0; n < want; n++) {
+      let best = null;
+      for (let x = 1.5; x <= W - 1.5; x += 0.5) {
+        for (let z = 1.5; z <= D - 1.5; z += 0.5) {
+          const d = room4(x, z) + rng() * 0.2;
+          if (!best || d > best.d) best = { x, z, d };
+        }
+      }
+      if (!best || best.d < 1.5) break;
+      const r = Math.min(1.55, best.d - 0.2);
+      roundRugs.push({ x: best.x, z: best.z, r });
+      const cols = BRAIDS[(hashStr(room.id ?? '') + n) % BRAIDS.length];
+      const rugM = new THREE.Mesh(dgeo('roundRug', () => new THREE.CylinderGeometry(1, 1, 0.016, 56)), mat(`braidM:${cols.join()}`, () => new THREE.MeshStandardMaterial({ map: braidTexture(cols), roughness: 0.97 })));
+      rugM.scale.set(r, 1, r * (0.82 + rng() * 0.18));
+      rugM.rotation.y = rng() * Math.PI;
+      rugM.position.set(best.x, 0.008, best.z);
+      rugM.receiveShadow = true;
+      group.add(rugM);
+    }
+  }
+
+  const clear = (x, z, r) => {
+    if (x < r + 0.15 || z < r + 0.15 || x > W - r - 0.15 || z > D - r - 0.15) return false;
+    for (const s of solids) {
+      if (x > s.x0 - r - 0.12 && x < s.x1 + r + 0.12 && z > s.z0 - r - 0.12 && z < s.z1 + r + 0.12) return false;
+    }
+    for (const k of room.carriers ?? []) if (Math.hypot(x - k.x, z - k.z) < 2.6) return false;
+    if (room.entry && Math.hypot(x - room.entry.x, z - room.entry.z) < 1.6) return false;
+    for (const p of placed) if (Math.hypot(x - p.x, z - p.z) < r + p.r + 0.35) return false;
+    return true;
+  };
+  // by a wall (north z small, or west x small), or anywhere
+  const spot = (r, wall) => {
+    for (let i = 0; i < 60; i++) {
+      let x, z;
+      if (wall && !outdoor) {
+        if (rng() < 0.5) { x = 0.8 + rng() * (W - 1.6); z = r + 0.2 + rng() * 0.5; } else { x = r + 0.2 + rng() * 0.5; z = 0.8 + rng() * (D - 1.6); }
+      } else { x = 0.6 + rng() * (W - 1.2); z = 0.6 + rng() * (D - 1.2); }
+      if (clear(x, z, r)) { placed.push({ x, z, r }); return { x, z }; }
+    }
+    return null;
+  };
+  const area = W * D;
+  const list = outdoor
+    ? ['pot', 'pot', 'pot', 'can', 'ball', 'ball', 'yarn', 'mouse', ...(area > 300 ? ['pot', 'ball', 'mouse'] : [])]
+    : ['bowls', 'bed', 'post', 'cushion', 'yarn', 'yarn', 'mouse', 'mouse', 'books', 'slippers', 'wand',
+      ...(area > 200 ? ['yarn', 'mouse', 'cushion'] : []), ...(area > 300 ? ['bed', 'pot', 'books', 'wand', 'yarn'] : [])];
+  const WALLY = new Set(['bowls', 'bed', 'post', 'pot', 'books', 'cushion']);
+  const R = { bowls: 0.45, bed: 0.5, post: 0.3, yarn: 0.2, mouse: 0.15, books: 0.22, slippers: 0.22, pot: 0.25, can: 0.25, ball: 0.2, cushion: 0.36, wand: 0.36 };
+  const KICK = { yarn: 0.11, mouse: 0.09, ball: 0.16 };
+  for (const kind of list) {
+    let p = null;
+    if (kind === 'slippers' && room.entry) {
+      // by the door the person comes in at
+      const ex = room.entry.x, ez = room.entry.z;
+      const cand = [[ex + 0.2, ez - 1.9], [ex + 0.2, ez + 1.9], [ex + 1.9, ez - 0.2]];
+      const c = cand.find(([x, z]) => clear(x, z, R.slippers));
+      if (!c) continue;
+      placed.push({ x: c[0], z: c[1], r: R.slippers });
+      p = { x: c[0], z: c[1] };
+    } else p = spot(R[kind] ?? 0.25, WALLY.has(kind));
+    if (!p) continue;
+    const m = decorPiece(kind, rng);
+    m.position.set(p.x, 0, p.z);
+    m.rotation.y = kind === 'bowls' ? (p.z < 1.4 ? 0 : Math.PI / 2) : rng() * 6.28;
+    group.add(m);
+    if (KICK[kind]) toys.push({ obj: m, kind, r: KICK[kind], x: p.x, z: p.z, vx: 0, vz: 0, spin: 0, home: { x: p.x, z: p.z, ry: m.rotation.y } });
+  }
+  if (!toys.length) return { group, update() {}, tidy() {} };
+
+  const q = new THREE.Quaternion();
+  const axis = new THREE.Vector3();
+  /** movers: [{ x, z, r, sp }] this frame. */
+  function update(dt, movers) {
+    if (!(dt > 0)) return;
+    dt = Math.min(dt, 0.05);
+    for (const t of toys) {
+      for (const m of movers ?? []) {
+        const dx = t.x - m.x, dz = t.z - m.z;
+        const d = Math.hypot(dx, dz);
+        const reach = t.r + m.r;
+        if (d >= reach || d < 1e-4) continue;
+        const nx = dx / d, nz = dz / d;
+        // out of the way, then off along the shove
+        t.x = m.x + nx * reach;
+        t.z = m.z + nz * reach;
+        const push = Math.min(5.5, 0.9 + (m.sp ?? 0) * 1.15);
+        const along = t.vx * nx + t.vz * nz;
+        if (along < push) { t.vx += nx * (push - along); t.vz += nz * (push - along); }
+        t.spin = (rng() - 0.5) * 14;
+      }
+      const sp = Math.hypot(t.vx, t.vz);
+      if (sp < 0.02) { t.vx = t.vz = 0; continue; }
+      let nx = t.x + t.vx * dt, nz = t.z + t.vz * dt;
+      // walls and furniture: bounce, losing some speed
+      if (nx < t.r || nx > W - t.r) { t.vx *= -0.6; nx = Math.max(t.r, Math.min(W - t.r, nx)); }
+      if (nz < t.r || nz > D - t.r) { t.vz *= -0.6; nz = Math.max(t.r, Math.min(D - t.r, nz)); }
+      for (const s of solids) {
+        if (nx > s.x0 - t.r && nx < s.x1 + t.r && nz > s.z0 - t.r && nz < s.z1 + t.r) {
+          const inX = t.x > s.x0 - t.r && t.x < s.x1 + t.r;
+          if (inX) { t.vz *= -0.6; nz = t.z; } else { t.vx *= -0.6; nx = t.x; }
+        }
+      }
+      const moved = Math.hypot(nx - t.x, nz - t.z);
+      t.x = nx; t.z = nz;
+      const f = Math.exp(-(t.kind === 'mouse' ? 4.2 : 1.6) * dt);
+      t.vx *= f; t.vz *= f;
+      t.obj.position.x = t.x;
+      t.obj.position.z = t.z;
+      if (t.kind === 'mouse') {
+        t.obj.rotation.y += t.spin * dt;
+        t.spin *= f;
+      } else {
+        // roll: turn about the axis across the motion
+        axis.set(t.vz, 0, -t.vx).normalize();
+        q.setFromAxisAngle(axis, moved / t.r);
+        t.obj.quaternion.premultiply(q);
+      }
+    }
+  }
+  function tidy() {
+    for (const t of toys) {
+      t.x = t.home.x; t.z = t.home.z; t.vx = t.vz = 0;
+      t.obj.position.set(t.x, 0, t.z);
+      t.obj.rotation.set(0, t.home.ry, 0);
+    }
+  }
+  return { group, update, tidy };
+}
+
 // ---------------------------------------------------------------- the room
 export { isOutdoor };
 
@@ -762,6 +1147,21 @@ function glowTexture() {
  * update(t, dt), dispose() }. A knocked thing slides off the edge away from `from`, falls, bounces and stays on the floor;
  * `onLand(prop, speed)` runs when it hits the floor.
  */
+/** A copy of a material that drops a share `u.value` of its pixels in a fine noise pattern (a screen-door fade). */
+function ditherMat(m, u) {
+  const d = m.clone();
+  const prev = m.onBeforeCompile;
+  const prevKey = m.customProgramCacheKey?.() ?? '';
+  d.onBeforeCompile = (sh, r) => {
+    prev?.call(d, sh, r);
+    sh.uniforms.uFade = u;
+    sh.fragmentShader = `uniform float uFade;\n${sh.fragmentShader}`.replace('void main() {', `void main() {
+      if (uFade > 0.01 && fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) < uFade) discard;`);
+  };
+  d.customProgramCacheKey = () => `dither${prevKey}`;
+  return d;
+}
+
 export function buildRoom(room, world, { quality = 'high', onLand = null } = {}) {
   const group = new THREE.Group();
   const W = room.w, D = room.d;
@@ -840,7 +1240,8 @@ export function buildRoom(room, world, { quality = 'high', onLand = null } = {})
 
   // the slab: the cut section under the room
   const slabColor = room.sea ? '#f4f2ec' : room.floor === 'grass' ? '#6b4a35' : outdoor ? '#9a9088' : PAL.section;
-  const pad = outdoor ? 0.25 : 0;
+  const cutaway = !outdoor && !style.glass;
+  const pad = outdoor ? 0.25 : cutaway ? WALL_T : 0;
   const slabG = new THREE.BoxGeometry(W + WALL_T + pad, 0.6, D + WALL_T + pad);
   own.push(slabG);
   const slab = new THREE.Mesh(slabG, std(slabColor, 0.85));
@@ -972,6 +1373,22 @@ export function buildRoom(room, world, { quality = 'high', onLand = null } = {})
     const wSpots = wins.filter((w) => w.axis === 'z').map((w) => w.c);
     group.add(buildWall('x', W, nSpots, wallH));
     group.add(buildWall('z', D, wSpots, wallH));
+    // the cut-away south and east walls: a low stub with its cut top, so the room reads as a cutaway
+    const STUB = 0.3;
+    const stubMat = wainsMat ?? std(style.paper, 0.85);
+    const stub = (x0, x1, z0, z1, y0, y1, m) => {
+      const mesh = new THREE.Mesh(BOX, m);
+      mesh.scale.set(x1 - x0, y1 - y0, z1 - z0);
+      mesh.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+      mesh.receiveShadow = true;
+      group.add(mesh);
+    };
+    stub(-WALL_T, W + WALL_T, D, D + WALL_T, 0, STUB, stubMat);
+    stub(W, W + WALL_T, -WALL_T, D, 0, STUB, stubMat);
+    stub(-WALL_T, W + WALL_T, D, D + WALL_T, STUB, STUB + 0.025, sectionMat);
+    stub(W, W + WALL_T, -WALL_T, D, STUB, STUB + 0.025, sectionMat);
+    stub(-WALL_T, W, D - 0.05, D, 0, 0.12, trimMat);
+    stub(W - 0.05, W, -WALL_T, D, 0, 0.12, trimMat);
   } else if (room.wall === 'white') {
     // a ship's rail along the back edges
     const railM = std('#f4f2ec', 0.5);
@@ -1256,6 +1673,47 @@ export function buildRoom(room, world, { quality = 'high', onLand = null } = {})
     p.obj.rotateZ(-p.ang);
   }
 
+  const decor = decorate(room, world, quality);
+  group.add(decor.group);
+
+  // tall pieces (shelves, wardrobes, the fridge, the shed) dither out while they hide a cat or a person from the camera
+  const fades = [];
+  for (const p of pieces) {
+    if (!p.tall) continue;
+    const u = { value: 0 };
+    p.group.traverse((o) => {
+      if (!o.isMesh || !o.material) return;
+      o.material = Array.isArray(o.material) ? o.material.map((m) => ditherMat(m, u)) : ditherMat(o.material, u);
+      own.push(...[o.material].flat());
+    });
+    p.group.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(p.group);
+    const corners = [];
+    for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) corners.push(new THREE.Vector3(x, y, z));
+    fades.push({ u, corners, box });
+  }
+  const pv = new THREE.Vector3();
+  function fadeTall(camera, movers, dt) {
+    if (!fades.length) return;
+    camera.updateMatrixWorld();
+    for (const f of fades) {
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, near = Infinity;
+      for (const c of f.corners) {
+        pv.copy(c).project(camera);
+        x0 = Math.min(x0, pv.x); x1 = Math.max(x1, pv.x); y0 = Math.min(y0, pv.y); y1 = Math.max(y1, pv.y); near = Math.min(near, pv.z);
+      }
+      let hide = false;
+      for (const m of movers ?? []) {
+        // behind the piece (north-west of its front) and inside its outline on screen
+        if (m.x > f.box.max.x + 0.2 && m.z > f.box.max.z + 0.2) continue;
+        pv.set(m.x, 0.3, m.z).project(camera);
+        if (pv.z > near && pv.x > x0 && pv.x < x1 && pv.y > y0 - 0.02 && pv.y < y1) { hide = true; break; }
+      }
+      const goal = hide ? 0.72 : 0;
+      f.u.value += Math.sign(goal - f.u.value) * Math.min(Math.abs(goal - f.u.value), dt * 3.5);
+    }
+  }
+
   return {
     group,
     windows,
@@ -1283,6 +1741,7 @@ export function buildRoom(room, world, { quality = 'high', onLand = null } = {})
     },
     /** Put everything back (a new round in the same room). */
     tidy() {
+      decor.tidy();
       for (const p of props) {
         p.state = 'rest'; p.x = p.home.x; p.y = p.home.y; p.z = p.home.z;
         p.obj.visible = true;
@@ -1290,8 +1749,11 @@ export function buildRoom(room, world, { quality = 'high', onLand = null } = {})
         p.obj.rotation.set(0, p.home.ry, 0);
       }
     },
-    update(t, dt = 1 / 60) {
+    /** movers: cats and people this frame [{ x, z, r, sp }], for the toys on the floor. */
+    update(t, dt = 1 / 60, movers = null, camera = null) {
       for (const f of anim) f(t);
+      if (movers) decor.update(dt, movers);
+      if (movers && camera) fadeTall(camera, movers, dt);
       for (const p of props) if (p.state === 'slide' || p.state === 'fall') stepProp(p, Math.min(dt, 0.05));
     },
     dispose() {

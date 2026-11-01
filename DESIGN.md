@@ -9,7 +9,8 @@
 **What the screen shows, with no words:** a sunny cutaway room, cats everywhere, an open red carrier with **0/6** stencilled
 on its side, and a wall clock running down.
 
-**Description (store):** "Get every cat into the carrier before the vet closes. Good luck."
+**Description (store):** "Get every cat into the carrier before the vet closes. Fifteen appointments with three stars each,
+a new Daily every day, rare coats for the Cat-alog and hats, carriers and claps to earn. Alone or with friends."
 **Genre:** Party. **Stack:** Vite + three.js, the SDK's `match` and `bots` helpers, fonts from @fontsource.
 
 You can't pick a cat up. You are a person in the room, and cats walk away from you. Everything else follows from that.
@@ -24,10 +25,10 @@ A first-time player (no save) who is alone in the server:
 | ~3 s | Tap Play (sound unlocks). Appointment 1, *Two Lazy Cats*, in a small studio flat: the headline for 2.4 s, the red carrier with **0/2** on it, two cats, the wall clock at 2:00. | none |
 | ~5 s | Control is yours. Gold footprints glow on the floor behind the nearest cat, on the far side from the carrier. | "Stand behind it" (over the cat) |
 | ~8 s | You step onto the footprints; the cat flattens its ears and trots away from you, toward the carrier. The clock starts on your first step. | "Push it in" (once it moves) |
-| ~15 s | It reaches the gold doormat and slips in. The door snaps shut, "mrrp", a red **IN** stamp thumps above the carrier, the counter pops to **1/2**. | none |
+| ~15 s | It reaches the gold doormat and squeezes in. The wire door swings, a latch, "mrrp", a red **IN** stamp thumps above the carrier, a hit-stop, the counter pops to **1/2**. | none |
 | ~28 s | Second cat in. **2/2**, the carrier wobbles... and a third cat crawls out from under the sofa. The counter flips to **2/3** with a "?!" stamp. (The laugh.) | none |
-| ~45 s | Third cat in. "All in!", stars drop onto a ticket: ★★ under the 0:40 par, ★★★ under the 0:25 expert time. | none |
-| ~50 s | Results: stars, time, best. **Next** is the big button (Enter). | none |
+| ~45 s | Third cat in, in slow motion. "All in!" stamps onto the results: the carrier socket lights, the clock socket (under the 0:25 par), the challenge socket (a Double) if the first two went in together. | none |
+| ~50 s | XP counts into the herder bar: level 2, a Beanie to wear. **Next** is the big button (Enter). | none |
 | ~55 s | Appointment 2 (*Up on the Sofa*): a cat sits on the sofa back and ignores you. | "Shake treats" + key cap J / the Treats button |
 
 A returning player (or anyone joining a server with people in it) goes Play → the Waiting Room lobby (below). After the first
@@ -55,32 +56,35 @@ Every few seconds: pick a cat → walk around to the far side of it → push it 
 in → pick the next one. Two buttons bend the rules:
 
 - **Walking is the push.** Any cat within 3 u of a person walks (then trots) directly away from them. The closer you are, the
-  faster it goes. Stop, and it slows and sits, looking back at you. You steer by where you stand.
-- **The tell.** A calm cat that feels you coming first stops and glances at you for 150-250 ms (per type), then bolts. You
-  can read every push before it happens.
+  faster it goes. Stop, and it slows and sits, looking back at you. You steer by where you stand. A pushed cat shows a
+  chevron where it's heading, gold when that line runs into the door.
+- **The tell.** A calm cat that feels you coming first stops and glances at you for 100-180 ms (per type), then bolts.
 - **Treats (J):** every cat within 6 u turns and follows you for 2.2 s, stopping 1 u away and begging, then sits content for
-  1.6 s before your push applies again. 4 s cooldown. A gold dotted ring expands to 6 u when you shake, so you see the reach.
-- **Clap (K):** every cat within 4 u bolts straight away from you (5 u/s for 0.9 s), cancelling any lure. 3 s cooldown. A
-  cream shockwave ring shows the 4 u reach.
-- **The door:** each carrier has a gold doormat (1.4 u wide, 1 u deep). A cat on it, moving toward the door (within ~70°),
-  goes in: pulled in over 0.35 s, door shut for 0.6 s, then open again. A cat arriving while it's shut bumps and turns away,
-  so pace your cats. A cat in a carrier stays there.
-- **Cats hate carriers.** A calm cat steers gently away from any carrier within 1.5 u. Nothing wanders in by itself; you
-  have to put it there.
-- **Cornered cats slip past.** A cat pinned by walls with nowhere to flee crouches for 0.35 s (telegraphed) then dashes past
-  you along the wall. Corners are where beginners lose cats.
+  1.4 s before your push applies again. 3.2 s cooldown. A gold dotted ring shows the reach.
+- **Clap (K) is a shot:** every cat within 4 u runs dead straight away from you at 6.8 u/s for 0.72 s, banks off walls and
+  furniture (keeping 86% of its speed per bounce) and knocks into other cats, which run on along the line between them.
+  2.4 s cooldown. While the clap is ready, every cat in reach shows its dotted path with one bounce; gold means it goes in.
+  Lining up a bank shot or a knock-on is the advanced game.
+- **The door stays open.** Each carrier has a gold doormat (1.5 u wide, 1.1 u deep). A cat on it, moving toward the door
+  (within ~70°), squeezes in. Cats in within 2.2 s of each other chain: **Double**, **Triple**, **Cat Train** (stamps,
+  confetti, a punch-in and a moment of slow motion). A cat in a carrier stays there.
+- **Cats hate carriers.** A calm cat steers gently away from any carrier within 1.5 u. Nothing wanders in by itself.
+- **Cornered cats slip past.** A cat pinned by walls crouches for 0.35 s (telegraphed) then dashes past you along the wall.
+
+**Twists** (from appointment 9, and one in every Daily): a **laser pointer** to pick up (cats in 5.5 u chase the dot for 7 s;
+in by laser is a trick), a **robot vacuum** (cats flee it, some hop on and ride; a ride in is a trick), the **doorbell**
+(three knocks, then every cat in 11 u scatters from the front door), **boxes** you shove about (a cat sits in one and goes
+where you push it: a special delivery). Lazy cats nap in **patches of sun** from the windows.
 
 **What a beginner does:** walks straight at cats, chases them around the room, claps when stuck, gets a cat in now and then.
 **What an expert does differently:**
 - Approaches on a wide arc so the cat never sees them from the wrong side, then pushes on a straight line to the door.
-- Pushes from 2.5 u (slow, precise) instead of 1 u (fast, wild); speeds up only on the final run.
-- Lines up two or three cats and walks them in as a train, timing for the door's 0.6 s shut.
-- Uses walls as rails: carriers sit near walls, and a cat fleeing along a wall is easy to steer.
-- Treat-then-flank: shakes treats beside the door so a group gathers in front of it, steps around behind them, walks them in.
-- Saves the clap for Loafs and Zoomers, never claps near a Scaredy.
+- Gathers two or three cats with treats beside the door, steps round and walks them in as a train for a Triple.
+- Claps from the right spot: a bank off the wall beside the carrier, a knock-on through a cat sitting on the mat.
+- Saves the clap for Loafs, Zoomers mid-wiggle and shots, never claps near a Scaredy.
 - Gets the Boss in first so its gang walks in alone; carries kittens in behind their cat.
-- In Versus: steals herds lined up at a rival's door, blocks the lane to their carrier with their own push, and claps a
-  rival's treat parade apart.
+- Uses the twists: the laser to pull a crowd to the door, a box to deliver a cat that won't move.
+- In Versus: steals herds lined up at a rival's door and claps a rival's treat parade apart.
 
 ## The cats
 
@@ -106,40 +110,38 @@ collision. Tall pieces (shelves, wardrobes, fridges) are walls. Ponds and railin
 
 ### Appointments: 15 levels
 
-Each level is a room, a fixed set of cats, a closing time and two target times. **★** done before closing, **★★** under
-par, **★★★** under the expert time. Missing closing time is "Missed appointment" and a one-tap Retry. The clock starts on the
-first move. The wall clock shows the par and expert times as gold notches on its rim; a star drops off as the hand passes
-each. Each level introduces one cat or one room feature, and the next unlocks when this one is done (any stars).
+Each level is a room, a fixed set of cats (their coats rolled fresh each try, so a rare one can turn up), a closing time and
+three stars: all in, under par, and the room's challenge. Beating the expert time adds a gold rosette. Missing closing time
+is "Missed appointment" and a one-tap Retry. The clock starts on the first move; the par is a gold notch on its rim. Each
+level introduces one cat or one twist, and the next unlocks when this one is done.
 
-| # | Name | Room (u) | Cats | Closes | Par / Expert | New |
-|---|---|---|---|---|---|---|
-| 1 | Two Lazy Cats | Studio 14×12 | 2 slow moggies (+1 surprise from under the sofa) | 2:00 | 0:40 / 0:25 | the push |
-| 2 | Up on the Sofa | Living room 16×14 | 3 moggies, one perched | 2:00 | 0:50 / 0:25 | treats, perches |
-| 3 | Loaf Around | Bedroom 16×14 | 2 Loafs, 1 moggy | 2:00 | 0:45 / 0:30 | clap, Loaf |
-| 4 | Snack Attack | Kitchen 16×12 | Glutton, 2 moggies | 2:00 | 0:50 / 0:30 | Glutton |
-| 5 | Zoomies | Hallway 24×8 | Zoomer, 2 moggies | 2:00 | 0:55 / 0:30 | Zoomer |
-| 6 | Under the Bed | Big bedroom 18×14 | Scaredy, 3 moggies | 2:00 | 1:00 / 0:35 | Scaredy, hiding |
-| 7 | Kitten Pile | Laundry 14×14 | 1 moggy, 3 kittens | 2:00 | 0:35 / 0:20 | Kittens |
-| 8 | The Boss | Back garden 22×18 | Boss, 3 gang, 1 moggy | 2:30 | 0:45 / 0:25 | Boss, pond |
-| 9 | Cat Café | Café 22×18 | 8 mixed | 3:00 | 2:00 / 1:05 | many perches |
-| 10 | Quiet Please | Library 22×18 | 2 Scaredy, Loaf, Zoomer, 2 moggies | 3:00 | 2:15 / 1:20 | falling books |
-| 11 | Moving Day | Flat full of boxes 20×16 | 7 mixed | 3:00 | 2:40 / 1:05 | boxes everywhere |
-| 12 | All Aboard | Boat deck 24×10 | 8, two Zoomers | 3:00 | 2:05 / 1:15 | narrow lanes, rails |
-| 13 | Greenhouse | Greenhouse 20×16 | Boss, 3 gang, Glutton, 2 kittens, 1 moggy | 3:00 | 1:25 / 0:45 | aisles, pots |
-| 14 | Rooftop | Roof garden 22×18 | 10 mixed | 3:30 | 2:25 / 1:35 | chimneys |
-| 15 | Closing Time | The whole flat 26×20 | 9, every type | 4:30 | 3:55 / 2:20 | doorways between rooms |
+| # | Name | Room (u) | Cats | Closes | Par / Expert | Challenge | New |
+|---|---|---|---|---|---|---|---|
+| 1 | Two Lazy Cats | Studio 14×12 | 2 moggies (+1 surprise from under the sofa) | 2:00 | 0:25 / 0:15 | A Double | the push |
+| 2 | Up on the Sofa | Living room 16×14 | 3 moggies, one perched | 2:00 | 0:35 / 0:20 | No claps | treats, perches |
+| 3 | Loaf Around | Bedroom 16×14 | 2 Loafs, 1 moggy | 2:00 | 0:30 / 0:20 | Loaf in one clap | clap, Loaf |
+| 4 | Snack Attack | Kitchen 16×12 | Glutton, 2 moggies | 2:00 | 0:25 / 0:15 | A knock-on | Glutton |
+| 5 | Zoomies | Hallway 24×8 | Zoomer, 2 moggies | 2:00 | 0:35 / 0:20 | Zoomer mid-sprint | Zoomer |
+| 6 | Under the Bed | Big bedroom 18×14 | Scaredy, 3 moggies | 2:00 | 0:40 / 0:25 | Nobody hides | Scaredy |
+| 7 | Kitten Pile | Laundry 14×14 | 1 moggy, 3 kittens | 2:00 | 0:20 / 0:10 | A Triple | Kittens |
+| 8 | The Boss | Back garden 22×18 | Boss, 3 gang, 1 moggy | 2:30 | 0:50 / 0:25 | Boss first | Boss, pond |
+| 9 | Cat Café | Café 22×18 | 8 mixed | 3:00 | 1:20 / 0:45 | In by laser | laser pointer |
+| 10 | Quiet Please | Library 22×18 | 2 Scaredy, Loaf, Zoomer, 2 moggies | 3:00 | 1:30 / 0:50 | A bank shot | doorbell |
+| 11 | Moving Day | Flat full of boxes 20×16 | 7 mixed | 3:00 | 1:15 / 0:40 | Special delivery | boxes |
+| 12 | All Aboard | Boat deck 24×10 | 8, two Zoomers | 3:00 | 1:15 / 0:40 | A vacuum ride | robot vacuum |
+| 13 | Greenhouse | Greenhouse 20×16 | Boss, 3 gang, Glutton, 2 kittens, 1 moggy | 3:00 | 1:15 / 0:30 | Boss first | laser + Boss |
+| 14 | Rooftop | Roof garden 22×18 | 10 mixed | 3:30 | 1:55 / 1:00 | Two bank shots | vacuum + doorbell |
+| 15 | Closing Time | The whole flat 26×20 | 9, every type | 4:30 | 2:30 / 1:20 | Nothing broken | doorways, the laser late |
 
-Par and expert times come from the herder bot's runs (see Balance); the later closing times leave room for 7-10 cats.
-
-A new cat type gets a 2-second introduction when its level starts: the camera frames it, its name and a 2-5 word tip on a
-tag ("Zoomer: wait for the wiggle", "Scaredy: don't clap!", "Glutton: loves treats", "Loaf: clap to move",
-"Kitten: follows a cat", "Boss: the gang follows"). Then it's gone.
+Par and expert times come from the herder bot's runs (see Balance). A new cat or twist gets a 2.4-second introduction: the
+camera frames it with its name and a short tip ("Zoomer: wait for the wiggle", "Laser pointer: grab it, cats chase the
+dot", "Doorbell: knock knock, then everyone scatters").
 
 ### Cat Lady (endless)
 
 Unlocks after Appointment 5. The Cat Lady's parlour, one carrier, a cat flap. Cats keep coming in through the flap so there
 are always 6 loose (rising by 1 every 8 boxed, to 10). The shift clock starts at 1:00 and every cat boxed adds time
-(+10 s, shrinking 0.08 s per cat to +5 s), a "+10" flying from the carrier into the clock. The mix escalates: moggies, then a Zoomer
+(+8 s, shrinking 0.1 s per cat to +4.5 s), a "+8" flying from the carrier into the clock. The mix escalates: moggies, then a Zoomer
 from cat 5, a Scaredy from 10, Gluttons and kittens from 15, a Boss gang from 20. The shift ends when the clock does. Score =
 cats boxed. A beginner boxes 10-15 (about 1:30); an expert 40+ (5 minutes or more). Leaderboard `cat-lady`.
 
@@ -221,11 +223,35 @@ playing, and joins the next one; the others see "At the vet" over their person.
 
 ## Progression and reasons to come back
 
-- **Stars** (45 in Appointments) and **best times** per level, shown on the Appointment Book and the results.
-- **Personal bests:** total stars and Cat Lady best on the title; per level and Cat Lady on their results.
-- **Leaderboards:** `cat-lady` (cats in a shift), `stars` (total), `cats-boxed` (lifetime), `appt-01`…`appt-15` (best time,
-  lower is better). 18 boards.
-- **Badges (10):**
+Short goals every few seconds (the next cat, a Double, a bank shot), mid goals every few minutes (a room's three stars, a
+level-up and what it brings), long goals over days (the herder track to 30, four Cat-alog pages, the Daily streak).
+
+- **Three stars per appointment, each a different job:** a carrier (all in), a clock (under par) and the room's own
+  challenge (a Double, no claps, the Loaf in one clap, a knock-on, a Zoomer mid-sprint, nobody hides, a Triple, Boss first,
+  in by laser, a bank shot, a special delivery in a box, a vacuum ride, two bank shots, nothing broken). The challenge shows
+  as a chip under the platform menu while you play and lights up (or goes grey) the moment it's done (or lost). A gold
+  rosette for beating the expert time. 45 stars.
+- **Herder level (1-30).** XP for every run: 10 a cat, 15 for each extra cat in a combo, 20 a trick shot (bank, knock-on,
+  laser, ride, delivery), 25 the first time a room is kept, 60 a new star, 120 a new rosette, 30 a challenge done again,
+  20 a personal best, 150 the day's first Daily (+25 a day of streak, up to +150), 60 a goal and 120 all three, 25 a round
+  played and 80 a match won, 40 a new Cat-alog face and 200 a page filled. Level n needs 120 + 60(n−1). Every level brings
+  something to wear (`LEVEL_ITEMS`): eleven hats, nine carrier shells, six clap bursts, seven trails.
+- **Things to wear** (the Wardrobe): a hat on your person, a shell for your carrier (solo), a clap burst (hearts, stars,
+  confetti, bubbles, notes, fish) and a trail of prints (paws, hearts, flowers, sparkles, fish, stars, rainbow dots). Others
+  see your hat, clap and trail in matches (three small numbers in presence, checked by every page).
+- **The Cat-alog.** Every cat you box is counted by personality and coat. Coats are rolled per cat (the coat a room
+  names, or by chance: uncommon 1 in 7, rare 1 in 30, legendary Lucky Gold 1 in 150). A rare coat glints across the room; the first of each gets
+  a stamp as it goes in. Four pages (Personalities, House Cats, Fancy Coats, Rare & Lucky), each with a reward (Cat Ears, the
+  Calico carrier, the Rainbow trail, the Gold carrier).
+- **The Daily.** From appointment 3: one room for everyone each UTC day (`dailySetup(day)`: a level room, 5-7 cats, one
+  twist, a challenge, a par from the bot fit). A streak for keeping it on consecutive days, its own board where today's
+  times outrank older ones (score = day × 10000 + 9999 − tenths), and a counter of how many herders kept it today
+  (`ow.data.game` `dailyHerders`, reset daily).
+- **Today's goals.** Three a day from a seeded pool (box 15-30 cats, Doubles, a Triple, bank shots, knock-ons, trick shots,
+  stars, challenge stars, a room with no claps or no treats, pars, a Cat Lady shift of 10-20 once it's open, Versus rounds when
+  others are online), fixed once seen that day. XP for each and for all three.
+- **Leaderboards:** `appt-01`…`appt-15` (best time), `daily`, `cat-lady`, `stars`, `cats-boxed`, `herder` (level). 20 boards.
+- **Badges (16):**
 
 | id | Name | Earned |
 |---|---|---|
@@ -239,37 +265,52 @@ playing, and joins the next one; the others see "At the vet" over their person.
 | `crazy-cat-person` | Crazy Cat Person | Box 500 cats. |
 | `best-in-show` | Best in Show | Win a Versus match. |
 | `cat-lady` | Cat Lady | Box 25 cats in one shift. |
+| `cat-train` | Cat Train | Box four cats through the door in one go. |
+| `bank-shot` | Bank Shot | Bounce a clapped cat off a wall into the carrier. |
+| `rare-coat` | Rare Coat | Box a cat with a rare coat. |
+| `cat-alog` | Cat-alog | Fill every page of the Cat-alog. |
+| `week-of-dailies` | Week of Dailies | Keep the Daily seven days in a row. |
+| `herder-10` | Herder Level 10 | Reach herder level 10. |
 
-Save (`ow.save`, key `hc`): `{ v: 1, levels: { n: { stars, best } }, catLady, boxed, wins, hints: {...}, seen }`, written
-on events (a level ends, a shift ends, a match ends), never per frame.
+Save (`ow.save`, key `hc`, `src/meta/progress.js`): `{ v: 2, levels: { n: { s (star bits), best, ros } }, catLady, boxed,
+wins, xp, wear, fresh, book: { coats, types }, daily: { last, streak, best, day, time, s }, goals: { day, list, prog, done },
+seen, hints }`. Version 1 saves migrate (old star counts become star bits, XP is estimated, finished rooms fill the book).
+Everything read from a save is checked and clamped. Written when a run, shift or match ends, never per frame.
 
 ## Balance and timing
 
+Every number lives in `src/sim/tuning.js`.
+
 | | Value |
 |---|---|
-| Person | 4.0 u/s, full speed in 0.12 s, stops in 0.08 s, radius 0.35 u |
-| Flee (moggy) | radius 3 u; speed 1.6 u/s at the edge rising to 3.5 u/s at 1 u; a calm cat glances for 0.17-0.23 s first; turns at up to 11 rad/s fleeing (4.2 calm); keeps going 0.5 s after you leave, then slows over 0.4 s; ±6° wobble |
-| Calm | walks 1.5 u/s in 1-3 s bursts, sits 2-6 s |
-| Treats | radius 6 u, lure 2.2 s at 2.2 u/s, stop at 1 u, content 1.6 s, cooldown 4 s |
-| Clap | radius 4 u, bolt 5 u/s for 0.9 s then trot 2.5 u/s for 0.8 s, cooldown 3 s |
-| Door | mat 1.4 × 1.0 u, entry within 70° of the door and above 0.5 u/s, pull-in 0.35 s, shut 0.6 s |
+| Person | 4.6 u/s, full speed in 0.11 s, stops in 0.08 s, radius 0.35 u |
+| Flee (moggy) | radius 3 u; 2.0 u/s at the edge rising to 4.0 u/s close; a calm cat glances for 0.11-0.15 s first; turns at up to 11 rad/s fleeing (4.2 calm); keeps going 0.5 s after you leave, then slows over 0.4 s |
+| Calm | walks 1.5 u/s in bursts, sits a few seconds; naps in a sun patch within 7 u (Loafs and Gluttons always, Zoomers rarely) |
+| Treats | radius 6 u, lure 2.2 s at 2.2 u/s, stop at 1 u, content 1.4 s, cooldown 3.2 s |
+| Clap | radius 4 u, a shot at 6.8 u/s for 0.72 s (86% kept per bounce, cats knocked on), then a 3 u/s trot for 0.55 s; cooldown 2.4 s |
+| Door | mat 1.5 × 1.1 u, entry within ~70° of the door and above 0.5 u/s, pull-in 0.3 s; combos within 2.2 s |
 | Cornered slip | blocked 0.4 s → crouch 0.35 s → 4.5 u/s for 0.8 s along the wall |
-| Zoomer | walk 2 u/s, flee up to 4 u/s, wiggle 0.7 s, sprint 7 u/s × 1.2 s, every 5-9 s, 10% speed lost per bounce |
-| Scaredy | flee radius 5 u, 1.8-4.5 u/s, hides on a clap within 8 u or crash within 6 u, creeps out at 1.2 u/s |
-| Glutton | walk 1 u/s, flee radius 2.5 u, max 2.2 u/s, treats from 14 u at 2.8 u/s for 3 s |
-| Kitten | follows at 1 u, up to 3 u/s, flee radius 2 u, follows in within 4 u after 0.8 s |
-| Boss | flee radius 3 u, max 2 u/s, clap → 2.5 u/s for 1 s, gang within 6 u, gang walks to the carrier at 1.8 u/s |
-| Loaf | clap scoot 2.5 u over 0.6 s |
-| Perch | 4%/s when idle near a low piece, 6-15 s; swat chance 15% per perch |
-| Simulation | fixed 30 Hz step with an accumulator; seeded RNG per round; cat-cat separation 0.6 u |
-| Versus | 2:00 rounds, 4 cats per seat, 3 rounds, room 24×20 (≤4 seats) or 30×24 (5-6) |
+| Zoomer | walk 2 u/s, flee up to 4.4 u/s, wiggle 0.7 s, sprint 7 u/s × 1.2 s, every 5-9 s |
+| Scaredy | flee radius 5 u, 2.0-4.6 u/s, hides on a clap within 8 u or a crash within 6 u, creeps out at 1.2 u/s |
+| Glutton | walk 1 u/s, flee radius 2.6 u, max 2.8 u/s, treats from 14 u at 2.8 u/s for 3 s |
+| Kitten | follows at 1 u, flee radius 2 u, follows in within 4 u after 0.8 s |
+| Boss | flee radius 3 u, max 2.4 u/s, clap → 2.5 u/s for 1 s, gang within 6 u, the gang marches in at 1.8 u/s |
+| Loaf | a clap scoots it 3.6 u over 0.8 s |
+| Laser | picked up within 0.75 u; cats in 5.5 u chase the dot (4.6 u/s) for 7 s; back after 14 s |
+| Robot vacuum | 1.25 u/s, scares cats in 2 u, 35% hop on and ride |
+| Doorbell | 1.8 s of knocks, then every cat in 11 u bolts from the front door |
+| Boxes | a cat within 4 u may sit in one (55%); a shove moves box and cat |
+| Simulation | fixed 30 Hz step; seeded RNG per round; cat-cat separation 0.62 u |
+| Versus | 2:00 rounds, 4 cats per seat, 3 rounds |
 | Together | 2:30 rounds, 6 + 2 cats per seat, stars with 0:30 and 1:00 left |
-| Cat Lady | clock 1:00, +10 s a cat (−0.08 s per cat, at least +5 s), 6 loose rising by 1 every 8 to 10 |
+| Cat Lady | clock 1:00, +8 s a cat (−0.1 s per cat, at least +4.5 s), 6 loose rising by 1 every 8 to 10 |
+| Daily | one seeded room, mix and twist for everyone; par from bot runs |
 | Bots | skill 0.35-0.7 in public, scaled by the table's rank |
 
 **How they're checked (`npm test`, node tests on the pure modules):**
-- A scripted "stand behind it" herder (the bot brain at skill 1) boxes every cat of every appointment, every personality
-  included, within par in at least 9 of 10 seeds, with a median under 80% of par.
+- The herder bot at skill 1 boxes every cat of every appointment (twists included) within par in most seeds, and its best run
+  beats the expert time (`tools/calibrate.mjs` sets par and expert from these runs).
+- Every Daily is winnable, and its par sits near the bot's median.
 - Versus with 2, 4 and 6 equal bots: at least 85% of cats boxed in 2:00, no runaway leader; a much better herder wins most
   matches but not all.
 - Together with 1, 3 and 6 seats: all in for a good team, two stars reachable (three with three seats).
@@ -283,49 +324,62 @@ All screens keep clear of `ow.ui.reserved` (re-read every half second; the clock
 Stencil. Buttons are solid blocks of a palette colour with a 3 px espresso outline and a 4 px hard offset shadow (no blur, no
 gloss), ≥ 56 px tall on phones, key caps shown on desktop.
 
-1. **Title.** The Grand Café diorama in attract mode (a bot herding, cats perching and swatting, the camera drifting slowly
-   round). "Herding Cats" in Fraunces Black, cream with a thick espresso outline, upper third. A red Play button in the middle-lower third (tap, click, Space or Enter). Under it, one line in stencil: ★ 23/45
-   and Cat Lady's best with a carrier glyph (hidden when zero).
-2. **Waiting Room (lobby).** A vet's waiting-room diorama: rows of red chairs, a rug, four cats wandering and dozing. Each
-   player stands in a row at the back with their carrier (seat colour and symbol) beside them, their name above, a brass bell
-   for the host, a green check when ready, "At the vet" when busy in solo; a "+ Invite" tag after the last one
-   (`ow.ui.showInvite()`). Beside the scene (right column on desktop and landscape, below it on portrait):
-   the **settings board** (two segmented rows: Versus | Together, Rounds 1 | 3 | 5; the host taps, others see them lit),
-   then two big tickets: **Appointments ★23/45** and **Cat Lady · best 41** (padlocked with "Appointment 5" until earned).
-   First-time players see a red "Start here" on Appointments. The platform's Ready strip sits at the bottom.
-3. **Appointment Book.** 15 cards in a 5×3 grid (3 columns × 5 rows on portrait), each: number in stencil, room name, the
-   new cat's symbol, earned stars, best time; locked ones show a padlock. Back (top-right). The next unplayed card pulses.
-4. **Level intro (2.4 s).** The headline ("Appointment 3" over *Loaf Around*); a new type gets the camera and its tag
-   ("Loaf: clap to move").
-5. **Play HUD (solo).** Top centre: the wall clock (a cream face, espresso rim, red second hand, gold star notches) with the
-   time in big stencil numerals beside it; red and ticking under 0:30, pulsing under 0:10. Top right: a carrier glyph with
-   **3/6**. Under your person, a floor ring in your colour: its left half (gold) is Treats, its right half (cream) is Clap,
-   each drained on use and refilling; a press during cooldown gives a dull click. Off-screen (when the camera follows): an edge
-   arrow to your carrier, and paw arrows to the last cats when 3 or fewer are loose. Hints float above the thing they're about. On desktop,
-   bottom right: the two key caps (J Treats, K Clap) with the same cooldown sweep.
-6. **Level results.** A ticket slides up: "All in!" (or "Missed appointment" with the cats left), the stars dropping in one
-   by one with a tink each, time, par/expert, best (a "New best" stamp), the level's top 5 times. Buttons: **Next** (Enter, primary; Retry when missed), Retry (R), Book (Esc).
-7. **Pause (solo).** The scene freezes and darkens a little; a card: Resume (primary), Retry, Book.
-8. **Cat Lady.** HUD: the clock (each boxed cat sends a "+5" into it), boxed count big at top right. End: "Shift over", the
+1. **Title.** The Grand Café diorama in attract mode (a bot herding, cats perching and swatting, the camera drifting). "Herding
+   Cats" in Fraunces Black, cream with a thick espresso outline, its letters dropping in and swaying. A red Play button
+   (tap, click, Space or Enter). Once you've played: a strip with your herder card (level, the XP bar) and chips for stars
+   and the Daily streak.
+2. **Waiting Room (lobby).** A vet's waiting-room diorama: rows of red chairs, a rug, cats wandering and dozing. Each player
+   stands at the back with their carrier (seat colour and symbol) beside them, their name above, a bell for the host, a
+   check when ready; a "+ Invite" tag after the last one (`ow.ui.showInvite()`). Beside the scene (below it on portrait):
+   the **settings board** (Versus | Together, Rounds 1 | 3 | 5; the host taps, others see them lit), your herder card (opens
+   the wardrobe), then three tickets with a picture of the room: **Appointments** (stars), **Daily** (the streak flame) and
+   **Cat Lady** (best), padlocked until earned. First-time players see a red "Start here". The platform's Ready strip sits at
+   the bottom.
+3. **Appointment Book (the solo hub).** Left column: the herder card (level, XP bar, the next unlock), today's three goals with
+   their bars, the Daily ticket (today's room, mix and twist, your best, the streak, how many herders kept it today), Cat
+   Lady, then Wardrobe (a dot when there's something new) and Cat-alog. Right: fifteen appointment cards, each a rendered
+   picture of its room with the number, the new cat or twist, the three star sockets (carrier, clock, the challenge's icon),
+   the best time and a gold rosette for the expert time; locked ones say how to open them. The next one nudges.
+4. **Wardrobe.** Your person stands in their room with the camera beside the panel; tabs for Hats, Carriers, Claps and Trails,
+   every item as a picture (locked ones show the level they come at), "New" on fresh ones. Picking one tries it on in the
+   scene (the hat on your head, the carrier shell beside you); Wear keeps it.
+5. **Cat-alog.** Four pages (Personalities, House Cats, Fancy Coats, Rare & Lucky) of portraits rendered from the game's own cat models;
+   unseen ones are blurred silhouettes with a "?", rare ones sit on coloured backdrops. A full page pays a reward to wear.
+6. **Level intro (2.4 s).** The headline ("Appointment 9" over *Cat Café*); a new cat or twist gets the camera and its tag.
+7. **Play HUD (solo).** Top centre: the wall clock (a cream face, espresso rim, red second hand, a gold notch at par) with the
+   time in big stencil numerals; red and ticking under 0:30, pulsing under 0:10. Top right: a carrier glyph with **3/6**. Top
+   left: the room's challenge as a chip that lights (with a chime) when done. Under your person, a floor ring: its gold half is Treats, its
+   cream half is Clap, each drained on use and refilling. Off-screen: an edge arrow to your carrier and paw arrows to the
+   last cats. Combo and trick stamps over the carrier. On desktop, bottom right: the two key caps with the same sweep.
+8. **Results.** A panel beside the carrier (a sheet from below on portrait), told in order: "All in!" (or "Missed
+   appointment") stamped on, the time ("New best"), the three sockets lighting one by one, the expert rosette, XP lines
+   counting into the herder bar (a level-up with what it brings and a Wear button), new faces for the Cat-alog, a finished
+   page, the room's top times. Buttons: **Next** (Enter; Retry when missed), Retry (R), Book (Esc). A tap skips the telling.
+9. **Pause (solo).** The scene freezes and darkens a little; a card: Resume (primary), Retry, Book.
+10. **Cat Lady.** HUD: the clock (each boxed cat sends a "+8" into it), boxed count big at top right. End: "Shift over", the
    count, best, top 5, Retry (primary), Lobby.
-9. **Round intro (3 s, multiplayer).** "Round 2 of 3" over the room's name, large, while the camera shows the whole room.
-10. **Play HUD (multiplayer).** The clock as in solo. Versus: top right, your carrier glyph and count (big); under it a column
+11. **Round intro (3 s, multiplayer).** "Round 2 of 3" over the room's name, large, while the camera shows the whole room.
+12. **Play HUD (multiplayer).** The clock as in solo. Versus: top right, your carrier glyph and count (big); under it a column
     (a row under the clock on portrait) of every seat's carrier glyph with its symbol and count, the leader's wearing a gold
     rosette. Names over heads. Together: one counter on the shared carrier, the clock rim shows the team star notches.
-11. **Round end (5 s).** The whole room; a headline: "Priya wins" with the cats (Together: "All in!" with the time left and
+13. **Round end (5 s).** The whole room; a headline: "Priya wins" with the cats (Together: "All in!" with the time left and
     the team's stars).
-12. **Match results.** "Best in Show!" (or "Priya: Best in Show") over the standings: place, seat symbol, name, total cats;
+14. **Match results.** "Best in Show!" (or "Priya: Best in Show") over the standings: place, seat symbol, name, total cats;
     confetti and a fanfare. Host of a private server: a Lobby button; a public server goes back by itself after 25 s.
-13. **Watching.** The match, camera on the leader; our own "Next round" note once admitted.
-14. **Room closed.** One message, one button: "You were removed" + Play; "Connection lost" + Rejoin; "Playing in another tab"
+15. **Watching.** The match, camera on the leader; our own "Next round" note once admitted.
+16. **Room closed.** One message, one button: "You were removed" + Play; "Connection lost" + Rejoin; "Playing in another tab"
     + Play here. Each re-joins with the same options.
 
 ## Art direction
 
 **The world:** miniature cutaway apartments, as if a set designer built tiny lived-in rooms on a tabletop. Each room is a slab
-with a visible cross-section (oak boards, a plaster layer, a dark base), two back walls with sunlit windows, the front walls
-cut away, floating over a warm dark backdrop. Warm wood, rugs, plants, books, sun shafts with drifting dust motes. Soft,
-chunky, rounded low-poly forms with smooth shading, like painted resin miniatures.
+with a dark cut section, two back walls (wallpaper, wainscoting, skirting, windows with a view and curtains, paintings) and
+the front walls cut down to a low stub, floating over a warm dark backdrop. Furniture is CC0 (Quaternius' House Interior,
+Kenney's Furniture Kit) recoloured into one palette; floors are ambientCG wood, tile and carpet. The things that make it a
+cat household are made in code: bookcases full of books, rugs with fringes, braided rag rugs in the emptiest floor, bowls on
+a mat, pet beds, scratching posts, cushions, feather wands, yarn balls and toy mice that roll away when a cat or a person
+runs through them, slippers by the door. Late sun pours through the back windows: bright window patches on the floor, light
+shafts with drifting dust, soft shadows, contact shadows baked under every footprint.
 
 **Palette:**
 
@@ -350,21 +404,23 @@ latin subset, OFL.
 numerals; its door snaps shut with a red **IN** stamp for every cat. It's in the logo's lockup on the icon, it's the HUD
 counter's glyph, it's each player's lobby seat, the podium is stacked carriers, and the cover's subject.
 
-**Lighting and camera:** late-afternoon sun from the back windows (warm `#FFE2B0`, soft shadows from a shadow camera fitted to
-the room), a hemisphere fill (cool sky, warm floor bounce), ACES tone mapping, sRGB. The sun stands in front of the room, to
-the right, so the two back walls are lit. Orthographic camera, yaw 45°, pitch 40° (steeper than true isometric so the floor
-reads). It frames the whole room (the back walls' tops may run under the HUD); when that would make 1 u smaller than 40 CSS
-px (34 in matches) it follows you instead, leaning toward the room's centre. No tilt-shift and no dithering of tall furniture:
-the rooms are laid out so tall pieces stand along the back walls, and the blur cost frame time on phones for little gain.
+**Lighting and camera:** late-afternoon sun low in the north-west through the back windows (soft shadows from a shadow camera
+fitted to the room), a hemisphere fill, ACES tone mapping. A **perspective camera with a long lens** (30° FOV, 52° pitch,
+from the south-east), so the room reads as a miniature: it follows you with a little look-ahead, leans toward the carrier,
+punches in on combos and slows time for the last cat. Above low quality: bloom, a tilt-shift blur (sharp across the middle
+band), a warm grade (shadows toward plum) and a vignette. Tall pieces between the camera and a cat dither out.
 
-**Cats** are the stars: procedural rounded bodies with a small rig (spine, head, ears, four legs, a 4-joint spring tail),
-coats in vertex colour (ginger tabby, grey tabby, tuxedo, calico, black, white, tortoiseshell, siamese points), a thin
-espresso outline. Ears flatten when pushed, perk at treats; tails puff when scared, go straight up when content, swish on a
-perch; heads track the nearest person; blinks; squash on landings, stretch on leaps.
+**Cats** are the stars: one skinned model per cat, generated in code from a body plan (a body sweep, a head with cheeks and
+muzzle, ears, four jointed legs, a long tail) with seven builds (the Kitten's big head, the Glutton's belly, the Zoomer's
+long legs, the Boss's jowls and torn ear). A fur shader paints coats from the body's own coordinates: tabby stripes and the
+forehead M, tuxedo bibs and socks, calico patches, tortie mottle, Siamese points, and the rare coats (Silver Tabby, Panda,
+Lucky Gold, Midnight and more), which glint. Eyes with pupils that go round when scared, lids that blink. A procedural
+animator blends gaits from speed (walk, trot, gallop), the startle hop, ears back, the arched hiss with a bottle-brush tail,
+the butt wiggle, loafing, curled sleep, grooming, perching with the tail hanging, squeezing in through the carrier door.
 
-**People:** chunky rounded figures dressed from the player's avatar (`ow.player.avatar`: skin, shirt, pants, hat), a gold
-treat bag in one hand. Shake: bag up and rattled with gold sparkles. Clap: hands over the head, a cream shockwave ring. Bots
-dress in their own outfits (cardigans, overalls, scrubs, sun hats).
+**People:** CC0 animated characters (Quaternius) with real idle, walk, run and clapping clips, dressed from the player's avatar
+colours, wearing the hat they picked. Treats: the pouch up and rattled with gold sparkles. Clap: hands together over the
+head, a shockwave ring in the clap's colours.
 
 **HUD in the world's language:** the timer is the room's wall clock; the score is stencilled on carriers; results are stamps;
 hints are short words floating over the thing they're about. No boxes behind HUD items: white or cream text with a thick
@@ -372,28 +428,31 @@ espresso outline, or a solid band where needed.
 
 ## Sound
 
-All synthesized in Web Audio, through a light room reverb (a generated impulse).
+Two layers through a light room reverb. **Recorded** (Kenney, CC0; trimmed, normalised and joined into one 275 KB
+`public/sfx/sprite.mp3` by a script, offsets in `src/sfxsprite.js`): footsteps per floor (wood, carpet, stone, grass), the
+carrier's metal latch, a leather treat pouch, wood knocks, glass and plate breaks, a bell, a tin bump, soft thuds, book
+pages, cloth, chips and coins, UI clicks, toggles and ticks, and jingles (sax for all in and the sad trombone for a miss,
+steel drum for a level-up, pizzicato for a full Cat-alog page). **Made** in Web Audio: meows (formant-filtered saw with a
+contour per cat), purrs, hisses, grumbles, the clap, the kibble in the bag, the stamp's thump, star tinks, the jazz trio.
+Until the sprite has loaded, the made sounds play alone.
 
-| Action | Sound |
+| Moment | Sound |
 |---|---|
-| Footsteps | soft filtered taps, pitch by floor (wood, rug, grass, deck) |
-| Cat pushed | a short "mrt" or a grumble, pitch per cat (kitten high, Boss low), varied length and contour |
-| Meows | formant-filtered saw with a rising-falling contour and vibrato, randomised per cat |
-| Treats | the bag's rattle: 8-12 granular clicks; purrs from lured cats (low amplitude-modulated noise) |
-| Clap | a sharp noise transient into the reverb, then hisses (band-passed noise sweeps) from cats in range |
-| In | carrier door clank (inharmonic partials + latch click), a "mrrp" trill, the stamp's thump |
-| Bump at shut door | a hollow plastic knock + an offended "mrow" |
-| Crash | glass/ceramic shatter: noise bursts + random high pings |
-| Zoomer | claw scrabble then a whoosh |
-| Scaredy hides | a squeak and a scurry |
-| Slip past | a quick skitter and a cheeky chirp |
-| Clock | ticks from 0:30, louder from 0:10; the vet's door chime at closing |
-| UI | a soft wooden tap for buttons, a star "tink" rising per star |
-| Stingers | round start (vibraphone run + chime), all in (a bright horn chord + a little chorus of meows), missed (a sliding trombone "wah-wah"), match win fanfare |
+| Push | a "mrt" per cat (kitten high, Boss low) |
+| Treats | the pouch and the kibble; purrs from lured cats |
+| Clap | the clap into the room, a soft thump; hisses |
+| In | the latch, a "mrrp", the stamp's thump |
+| Combo | a star tink rising per cat |
+| Knock-on, bumps | wood knocks; the robot vacuum is tin |
+| Doorbell twist | three knocks on the front door, then ding-dong |
+| Crash | glass and plate |
+| A new coat | a page; a rare one gets a glass ping and a ta-da |
+| Results | each star a tink, each XP line a chip, unlocks a coin purse and a rise |
 
-**Music:** a small step sequencer playing light jazz at 112 BPM with swung eighths: pizzicato walking bass, brushed snare
-swishes on 2 and 4, a vibraphone-like melody (sine + soft FM) over Gm7-C7-Fmaj7-D7, phrases picked by seed so rounds differ.
-In the last 30 s the tempo eases to 132 and a staccato counter-line joins. Menus play just bass and brushes, 8 dB quieter.
+**Music that builds:** the jazz trio (112 BPM, swung, Gm7-C7-Fmaj7-D7, phrases picked by seed) follows the carrier. Empty:
+walking bass and a ride. A sixth in: brushes. A third: comping chords. Half: the vibes' tune on the beat and a soft kick.
+Two thirds: the whole tune. Five sixths: the tune doubled an octave up and more comping. The last 30 s go to 132 BPM with
+staccato stabs. Menus play bass, ride and brushes, quieter.
 
 ## Store art and trailer
 
@@ -454,7 +513,12 @@ diorama with stencilled carriers and an IN stamp, is its own.
 - **Personality symbols show when they matter** (acting, near you, always for the Boss), not over every cat all the time.
 - **First-time players alone skip the lobby** into Appointment 1, so they're playing within 5 seconds.
 - **The game owns its countdown** (`ownCountdown: true`, 3 s): one 3-2-1 over the Waiting Room, then the round's headline.
-- **No carrier skins.** In Versus the seat colours and symbols are the identity; skins would muddy them.
+- **Carrier shells are solo only.** You earn and wear shells for your own carrier in solo play; in Versus and Together the
+  seat colours and symbols stay the identity. Hats show everywhere.
+- **Three different stars** (all in, par, a challenge per room) instead of three time thresholds, plus an expert rosette.
+- **Twists** (laser pointer, robot vacuum, doorbell, boxes, sun patches) arrive from appointment 9 and in the Daily.
+- **The clap is a shot** that banks and knocks on, and **the door stays open** so trains of cats chain combos (the spec shut
+  it for 0.6 s after each cat).
 - **The title's café is the Cat Café level** played by the bot, rather than a separate diorama.
 
 ## Structure
@@ -462,16 +526,26 @@ diorama with stencilled carriers and an IN stamp, is its own.
 ```
 index.html, vite.config.js (base './'), package.json (build: vite build; test: node --test), onceworlds.json → dist/
 public/join.js    joins the server as the page loads (a classic script, before the bundle)
+public/assets/    the furniture kit and people (glTF, meshopt), surface textures
+public/sfx/       sprite.mp3: every recorded sound in one file (offsets in src/sfxsprite.js)
+public/ui/        rendered pictures for the screens: room cards, the cat sheet, the wear sheet
 src/main.js       screens, input, the frame loop, solo runs, matches, autoplay (never on onceworlds.com)
-src/poster.js     ?poster=<name>: the staged store pictures
-src/sim/          rng, tuning, kit (furniture), world (collision), rooms, game (cats, people, carriers, treats, clap, the
-                  door), levels, brain (the herder bot), runs (whole games for tests), codec (the cat stream)
+src/poster.js     ?poster=<name>: the staged store pictures and room cards; sheets.js the picture sheets; studio.js the
+                  cat studio
+src/sim/          rng, tuning, kit (furniture), world (collision), rooms, game (cats, people, carriers, treats, the clap
+                  shot, the door, twists), coats, sun (window patches), levels, daily, brain (the herder bot), runs (whole
+                  games for tests), codec (the cat stream)
+src/meta/         herder (XP, levels, things to wear), progress (what a run does to your save), challenges, goals, catalog
 src/net/          session (a round's simulation on a page: host, prediction, presence), net (the SDK side: match, bots)
-src/render/       stage (renderer, camera, light), room, cats, people, carriers, fx, view (draws a game), palette
-src/ui/           ui (buttons, tickets, the clock face, stamps), symbols (the SVG symbol set)
-src/audio.js      synthesized effects and the jazz sequencer
-src/save.js       progress, badges and leaderboards
-test/             sim, rooms, levels (every appointment within par), balance (versus, together, Cat Lady), net
+src/render/       stage (renderer, camera, light, post), assets, room (rooms, decor, toys, falling props), catmesh,
+                  catshader, catanim, cats, people, carriers, twists, guides (push chevrons, clap paths), fx, view, palette
+src/ui/           ui (buttons, the clock face, stamps), screens (herder card, book, daily, wardrobe, Cat-alog), results,
+                  icons, symbols, sheetlist
+src/audio.js      the sound sprite, made sounds, the jazz trio that fills with the carrier
+src/save.js       progress through ow.save, badges and leaderboards
+test/             sim, rooms, levels (every appointment within par), balance (versus, together, Cat Lady), meta
+                  (XP, stars, Cat-alog, Daily, goals), net, shots (the clap shot, combos, twists)
 ```
 
-Pure modules (`src/sim`, `src/net/session.js`) import nothing from the page, three.js or the SDK, so `node --test` runs them.
+Pure modules (`src/sim`, `src/meta`, `src/net/session.js`) import nothing from the page, three.js or the SDK, so `node --test`
+runs them.

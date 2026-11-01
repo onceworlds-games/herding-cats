@@ -580,10 +580,10 @@ async function boot() {
     app.scene = null;
   }
 
+  // close enough to read a cat's face, wide enough to plan the next herd: about nine room units across the short side
   function followSpan() {
     if (TAKE_SPAN) return TAKE_SPAN;
-    const short = Math.min(innerWidth, innerHeight);
-    return short / 40;
+    return innerWidth >= innerHeight ? 9.5 : 7.5;
   }
 
   function startLevel(n, { auto = false } = {}) {
@@ -1051,8 +1051,7 @@ async function boot() {
 
   function matchFollow() {
     if (TAKE_SPAN) return TAKE_SPAN;
-    const short = Math.min(innerWidth, innerHeight);
-    return short / (app.touch ? 34 : 29);
+    return innerWidth >= innerHeight ? 10.5 : 8.2;
   }
 
   function leaderPerson(s) {

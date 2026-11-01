@@ -7,6 +7,7 @@ import { createCats } from './cats.js';
 import { makePerson } from './people.js';
 import { makeCarrier } from './carriers.js';
 import { createFx } from './fx.js';
+import { COAT_LOOK } from './catshader.js';
 import { TREATS, CLAP, S } from '../sim/tuning.js';
 import * as sfx from '../audio.js';
 
@@ -74,6 +75,7 @@ export function createView(stage, { onStamp = null } = {}) {
     clearScene();
     v.g = g;
     v.floor = g.room.floor;
+    v.dustColor = g.room.floor === 'grass' ? '#c9d9a8' : g.room.floor === 'carpet' ? '#e6d6c4' : '#efe2c8';
     v.room = buildRoom(g.room, g.world, { quality: stage.quality, onLand });
     root.add(v.room.group);
     stage.setRoom(g.room.w, g.room.d);
@@ -141,7 +143,8 @@ export function createView(stage, { onStamp = null } = {}) {
         const view = v.carriers[e.ki];
         if (view) view.gulp();
         if (k) {
-          fx.dust(k.matX, k.matZ, 8);
+          fx.dust(k.matX, k.matZ, 8, v.dustColor);
+          fx.gulp(k.matX, k.matZ, v.looks[e.ki]?.color ?? '#f6b941');
           onStamp?.('in', k.x, 1.2, k.z, { carrier: e.ki });
         }
         sfx.clank();
@@ -169,8 +172,16 @@ export function createView(stage, { onStamp = null } = {}) {
         }
         break;
       }
-      case 'hide': case 'scared': sfx.squeak(); break;
-      case 'zoom': sfx.whoosh(); break;
+      case 'hide': case 'scared': {
+        sfx.squeak();
+        if (c) fx.tufts(c.x, 0.45, c.z, COAT_LOOK[c.coat]?.base ?? '#e8a060', e.k === 'scared' ? 7 : 3);
+        break;
+      }
+      case 'zoom': {
+        sfx.whoosh();
+        if (c) fx.dust(c.x, c.z, 6, v.dustColor);
+        break;
+      }
       case 'slip': sfx.skitter(); break;
       case 'hop': sfx.hop(); break;
       case 'surprise': {
@@ -246,7 +257,19 @@ export function createView(stage, { onStamp = null } = {}) {
     v.drawn = proxies;
     v.room?.update(t, dt);
     fx.update(dt, t);
-    fx.setScale(stage.h / stage.span);
+    fx.setScale((Math.min(stage.w, stage.h) * stage.dpr) / stage.span, stage.dist ?? 14);
+    // dust behind anything running fast
+    if (!opts.reducedMotion) {
+      kickT -= dt;
+      if (kickT <= 0) {
+        kickT = 0.09;
+        for (const c of g.cats) {
+          if (c.st === S.boxed || c.surprise || (c.y ?? 0) > 0.05 || (c.sp ?? 0) < 3) continue;
+          fx.kick(c.x, c.z, Math.cos(c.h), Math.sin(c.h), v.dustColor);
+        }
+        for (const p of v.drawn ?? []) if ((p.sp ?? 0) > 3.2 && p.active !== false) fx.kick(p.x, p.z, Math.cos(p.h), Math.sin(p.h), v.dustColor);
+      }
+    }
     // my ring
     if (me && ring.visible) {
       const mq = proxies[v.meIndex] ?? me;
@@ -283,6 +306,7 @@ export function createView(stage, { onStamp = null } = {}) {
   const drawOff = [];
   const proxies = [];
   let hasPrev = false;
+  let kickT = 0;
   v.capture = () => {
     const g = v.g;
     if (!g) return;

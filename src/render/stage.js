@@ -35,7 +35,7 @@ const FinishShader = {
       vec2 uv = vUv;
       // tilt-shift: sharp across the middle band, softer toward the top and bottom
       float d = abs(uv.y - uFocus);
-      float blur = uTilt * smoothstep(0.2, 0.5, d) * 3.2;
+      float blur = uTilt * smoothstep(0.22, 0.5, d) * 2.4;
       vec4 c = texture2D(tDiffuse, uv);
       if (blur > 0.05) {
         vec2 px = blur / uRes;
@@ -205,9 +205,9 @@ export function createStage(canvas, { poster = false } = {}) {
       let fx = focus.x, fz = focus.z;
       if (ahead) { fx += ahead.x; fz += ahead.z; }
       if (lean) { fx += (lean.x - fx) * 0.22; fz += (lean.z - fz) * 0.22; }
-      // keep a little room past the walls in view, never a lot of void
-      const m = span * 0.28;
-      center.set(clamp(fx, Math.min(w / 2, m), Math.max(w / 2, w - m * 0.7)), 0, clamp(fz, Math.min(d / 2, m), Math.max(d / 2, d - m * 0.7)));
+      // the back walls stay in view; past the open front edges, never much void
+      const m0 = span * 0.3, m1 = span * 0.46;
+      center.set(clamp(fx, Math.min(w / 2, m0), Math.max(w / 2, w - m1)), 0, clamp(fz, Math.min(d / 2, m0), Math.max(d / 2, d - m1)));
     } else if (focus) {
       center.set(lerp(w / 2, focus.x, 0.12), 0, lerp(d / 2, focus.z, 0.12));
     }
@@ -258,6 +258,7 @@ export function createStage(canvas, { poster = false } = {}) {
     const half = (st.span * (1 - st.punchK)) / 2;
     const tanV = Math.tan((FOV * Math.PI) / 360);
     const dist = aspect >= 1 ? half / tanV : half / (tanV * aspect);
+    st.dist = dist;
     tmp.copy(dir).multiplyScalar(dist).add(st.target);
     camera.position.copy(tmp);
     camera.lookAt(st.target);

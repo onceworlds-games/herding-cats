@@ -267,7 +267,7 @@ button.herder:active { transform: translate(2px, 2px); }
 .appt .foot { flex: none; display: grid; gap: 5px; padding: 7px 10px 9px; }
 .appt .nm { font: 700 16px/1.1 var(--word); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .appt .meta { display: flex; align-items: center; gap: 4px; min-height: 26px; }
-.appt .bt { margin-left: auto; font-size: 20px; }
+.appt .bt { margin-left: auto; font-size: 20px; white-space: nowrap; }
 .appt .ros { display: inline-flex; }
 .appt.locked { background: #cdbca4; cursor: default; box-shadow: 2px 2px 0 var(--ink); }
 .appt.locked .img { filter: grayscale(0.9) brightness(0.5); }
@@ -416,7 +416,8 @@ button.herder:active { transform: translate(2px, 2px); }
 .results .tops .tr { display: contents; }
 .results .tops .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .results .tops .num { font-size: 18px; }
-.results .acts { display: flex; gap: 10px; padding-top: 4px; }
+/* the buttons stay in view while the rest scrolls under them */
+.results .acts { display: flex; gap: 10px; padding-top: 6px; position: sticky; bottom: -14px; margin-bottom: -14px; padding-bottom: 14px; background: var(--cream); z-index: 1; }
 .results .acts .btn { flex: 1; min-width: 0; padding: 0 12px; }
 .xptoast { position: absolute; left: 50%; top: calc(var(--ct) + 74px); translate: -50% 0; display: flex; align-items: center; gap: 8px; background: var(--ink); border-radius: 999px; padding: 6px 16px 6px 8px; font-size: 26px; white-space: nowrap; }
 .xptoast .up { font: 900 18px/1 var(--word); color: var(--gold); }
@@ -439,6 +440,9 @@ button.herder:active { transform: translate(2px, 2px); }
   #book > .body > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); flex: none; }
   .wardrobe { left: var(--sx); right: var(--sr); top: auto; height: 48vh; width: auto; }
   .wardrobe .items { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+  .wardrobe .tabs { flex-wrap: nowrap; gap: 5px; }
+  .results .acts .cap { display: none; }
+  .wardrobe .tab { padding: 0 4px; font-size: 15px; min-width: 0; }
   .trying { bottom: calc(48vh + 30px); }
   .results { left: var(--sx); right: var(--sr); top: auto; bottom: 12px; width: auto; max-height: 58vh; }
   .catalog .entries { grid-template-columns: repeat(auto-fill, 150px); }
@@ -478,6 +482,12 @@ button.herder:active { transform: translate(2px, 2px); }
   .goals { padding: 8px 10px; gap: 4px; }
   .daily { min-height: 110px; }
   .appt .n { font-size: 34px; }
+  .appt .meta { gap: 2px; }
+  .appt .meta svg { width: 20px; height: 20px; }
+  .appt .bt { font-size: 16px; }
+  .results .rh .sub { display: none; }
+  .results .acts { bottom: -10px; margin-bottom: -10px; padding-bottom: 10px; }
+  .results .acts .cap { display: none; }
   .wardrobe { top: 60px; bottom: 8px; padding: 8px; gap: 8px; }
   .tab { min-height: 40px; font-size: 15px; }
   .results { top: calc(var(--rt) + 54px); max-height: calc(100% - var(--rt) - 62px); padding: 10px 14px; gap: 7px; }

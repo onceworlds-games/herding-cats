@@ -287,9 +287,12 @@ async function boot() {
   // ------------------------------------------------------------------ stamps
   const stampLayer = el('div');
   stampLayer.style.cssText = 'position:fixed;inset:0;pointer-events:none';
-  document.body.appendChild(stampLayer);
+  // under the screens, so a panel always covers the stamps of the scene behind it
+  ui.before(stampLayer);
   const TRICK_WORDS = { bank: 'Bank shot', chain: 'Chain', laser: 'Laser', ride: 'Special delivery', box: 'Special delivery' };
   function onStamp(kind, x, y, z, info = {}) {
+    // the attract scene behind the book and the Cat-alog plays on without stamps
+    if (app.screen === 'book' || app.screen === 'catalog') return;
     const p = stage.toScreen(x, y, z);
     // keep stamps on screen when what they're about is near an edge
     const mx = kind === 'combo' ? 190 : 110;

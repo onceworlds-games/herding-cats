@@ -58,7 +58,7 @@ export function createView(stage, { onStamp = null } = {}) {
 
   function clearScene() {
     if (v.room) { root.remove(v.room.group); v.room.dispose(); v.room = null; }
-    for (const k of v.carriers) { root.remove(k.root); root.remove(k.sign); }
+    for (const k of v.carriers) { root.remove(k.root); root.remove(k.sign); k.dispose(); }
     for (const p of v.persons) root.remove(p.root);
     v.carriers = [];
     v.persons = [];

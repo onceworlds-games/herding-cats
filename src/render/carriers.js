@@ -138,6 +138,18 @@ export function makeCarrier(k, look) {
 
   return {
     root, sign: signHolder,
+    /** free this carrier's own geometry, materials and textures (the shell, bar and handle shapes are shared) */
+    dispose() {
+      for (const top of [root, signHolder]) {
+        top.traverse((o) => {
+          if (o.geometry && !o.isSprite && o.geometry !== SHELL && o.geometry !== BAR && o.geometry !== HANDLE) o.geometry.dispose();
+          for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) {
+            m.map?.dispose();
+            m.dispose();
+          }
+        });
+      }
+    },
     /** a cat went in: snap the door shut, pop the count */
     gulp() { st.shut = DOOR.pull + DOOR.shut; st.pop = 1; st.wobble = 1; },
     bump() { st.wobble = Math.max(st.wobble, 0.6); },

@@ -226,7 +226,7 @@ async function boot() {
     const side = 34;
     const top = 92;
     const bottom = app.touch ? 150 : 56;
-    if (p.x > side && p.x < W - side && p.y > top && p.y < H - bottom) return;
+    if (p.x > 6 && p.x < W - 6 && p.y > 6 && p.y < H - 6) return; // on screen: no arrow
     let a = arrowPool.get(id);
     if (!a) {
       a = el('div', 'edge', '<i></i><b></b>');
@@ -473,7 +473,7 @@ async function boot() {
       step(a.g, STEP);
       a.acc -= STEP;
     }
-    view.drain((e) => e.k !== 'in' || true);
+    view.drain();
     if (a.g.over) {
       a.overT += dt;
       if (a.overT > 2.5) { app.scene = null; startAttract(); }
@@ -521,6 +521,8 @@ async function boot() {
       // people stand in a row in front of the benches, each with their carrier
       w.g.people.length = 0;
       for (const c of w.props.children.slice()) w.props.remove(c);
+      for (const cv of w.carriers ?? []) cv.dispose();
+      w.carriers = [];
       roster.forEach((r, i) => {
         const x = 2.4 + i * 2.25;
         addPerson(w.g, { id: r.id, x, z: 2.1, h: Math.PI / 2, external: true });
@@ -531,6 +533,7 @@ async function boot() {
         cv.sign.visible = false;
         cv.root.children.forEach((ch) => { if (Array.isArray(ch.material)) ch.visible = false; }); // no doormat in the waiting room
         w.props.add(cv.root);
+        w.carriers.push(cv);
       });
       w.list = roster;
       view.setPeople(roster.map((r, i) => ({ avatar: avatarOf(r.id), seed: hashId(r.id), look: SEATS[i] })), -1);
@@ -567,7 +570,7 @@ async function boot() {
 
   // ------------------------------------------------------------------ solo: an appointment or a Cat Lady shift
   function leaveScene() {
-    if (app.waiting) { stage.scene.remove(app.waiting.props); app.waiting = null; }
+    if (app.waiting) { stage.scene.remove(app.waiting.props); for (const cv of app.waiting.carriers ?? []) cv.dispose(); app.waiting = null; }
     app.attract = null;
     app.scene = null;
   }
@@ -1365,7 +1368,7 @@ async function boot() {
         tickMatch(dt);
         const s = app.local ? app.local.session : n?.session;
         if (s && app.scene === 'match') {
-          alpha = app.local ? stepAlpha(s, null) : n.alpha();
+          alpha = app.local ? stepAlpha(s, app.local.clockT) : n.alpha();
           me = s.people.get(s.me) ?? null;
           offsets = s.offsets;
           away = new Set();
@@ -1414,7 +1417,7 @@ async function boot() {
     app.local = {
       phase: 'intro', session: s, round: 3, rounds: 3, secondsLeft: 3, countdown: null, standings: [], results: null, me: { id: 'me' },
       isHost: true, kind: 'public', t: 0, acc: 0, clockT: 0, brain: createBrain({ skill: 1, seed: 3 }),
-      names: { me: 'Mo', 'bot:1': 'Priya', 'bot:2': 'Otis', 'bot:3': 'Bea' }, alpha: () => stepAlpha(s, null),
+      names: { me: 'Mo', 'bot:1': 'Priya', 'bot:2': 'Otis', 'bot:3': 'Bea' }, alpha: () => stepAlpha(s, app.local?.clockT ?? null),
     };
     enterMatch();
   }

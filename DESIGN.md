@@ -14,7 +14,7 @@ on its side, and a wall clock running down.
 
 You can't pick a cat up. You are a person in the room, and cats walk away from you. Everything else follows from that.
 
-## The first 60 seconds
+## The first minute
 
 A first-time player (no save) who is alone in the server:
 
@@ -408,13 +408,14 @@ Posters (deterministic, `?poster=<name>`, real renderer, no HUD):
 - **badge-<id>** (256×256): a bold symbol on a palette disc (a paw, a carrier, a clock, a crown, a bolt, a heart, a star, a
   yarn ball, a rosette, a cat's head).
 
-**Trailer (~30 s, 1280×720, autoplay capture):**
-1. 0-3 s: a push. A ginger cat trots straight into the carrier: clank, IN, 1/6. (The goal, at once.)
-2. 3-8 s: a lure. Treats rattle, three cats turn and follow, the flank, a train of three goes in: IN, IN, IN.
-3. 8-14 s: chaos. A clap, cats bolting, a cat on a shelf swats a vase, a Zoomer sprints right into the carrier.
-4. 14-22 s: Versus. Four players, a herd stolen at a rival's door, the Boss goes in and its gang marches after it.
-5. 22-28 s: the last cat in at 0:01, the clock red, the stamp, "All in!", fanfare.
-6. 28-31 s: "Herding Cats" over the café attract mode.
+**Trailer (`store/trailer.mp4`, 28 s, 1280×720, 30 fps, H.264 + AAC, 7 MB):** autoplay captures (`?autoplay=1&scene=...`,
+`&zoom=` for a closer following camera; never on onceworlds.com), the herder bot playing, the game's own sound.
+1. 0-4 s: Appointment 1. The carrier with 0/2, two cats; the ginger is walked in: IN, 1/2.
+2. 4-9 s: the black cat goes in, 2/2... and the third cat crawls out from under the sofa: 2/3.
+3. 9-12 s: Cat Lady: a crowd of cats round the herder.
+4. 12-19 s: Versus in the library: four colours, cats going in, the counts climbing.
+5. 19-25 s: Kitten Pile: the last kitten in, 4/4, "All in!", three stars.
+6. 25-28 s: "Herding Cats" over the café.
 
 ## Originality check
 

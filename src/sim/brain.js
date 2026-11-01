@@ -156,7 +156,7 @@ function leadCat(g, p, b, c, k, T, wp, dist) {
     const al = Math.hypot(ax, az) || 1;
     ax /= al;
     az /= al;
-    const reachOut = Math.min(range, Math.max(2.5, al + 1.2));
+    const reachOut = Math.min(range, Math.max(2.5, al + (wp.final ? 1.2 : 0.4)));
     for (const da of [0, 0.35, -0.35, 0.7, -0.7, 1.1, -1.1]) {
       const a = Math.atan2(az, ax) + da;
       for (const r of [reachOut, reachOut * 0.7]) {

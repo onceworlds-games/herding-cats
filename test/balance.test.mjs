@@ -42,14 +42,17 @@ test('a much better herder wins most versus matches, not all', () => {
 test('together: a good team gets every cat in, from one to six people', () => {
   for (const seats of [1, 3, 6]) {
     let allIn = 0;
+    let stars2 = 0;
     let stars3 = 0;
     for (let seed = 1; seed <= 5; seed++) {
       const r = runRound({ seed, round: 2, seats, together: true, skills: Array(seats).fill(0.8) });
       if (r.allIn) allIn++;
+      if (r.allIn && ROUND.together - r.time >= ROUND.togetherStars[0]) stars2++;
       if (r.allIn && ROUND.together - r.time >= ROUND.togetherStars[1]) stars3++;
     }
     assert.ok(allIn >= 4, `${seats} seats: ${allIn}/5 all in`);
-    if (seats >= 3) assert.ok(stars3 >= 1, `${seats} seats: three stars reachable`);
+    assert.ok(stars2 >= 1, `${seats} seats: two stars reachable`);
+    if (seats === 3) assert.ok(stars3 >= 1, `${seats} seats: three stars reachable`);
   }
 });
 

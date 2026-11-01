@@ -58,7 +58,7 @@ export function addCat(g, spec) {
     wob: 0, wobT: 0, fleeMem: 0, lingerT: 0, cornerT: 0,
     zoomT: T.zoomEvery ? r.range(T.zoomEvery[0], T.zoomEvery[1]) : 0,
     aim: 0, lureBy: -1, carrier: -1, hop: null, path: null, pathT: 0,
-    followIn: null, swatted: false, surprise: !!spec.surprise, credit: null, creditT: 0, entering: false, zoomed: false,
+    followIn: null, swatted: false, surprise: !!spec.surprise, credit: null, creditT: 0, by: null, entering: false, zoomed: false,
     look: -1, glance: 0,
   };
   g.cats.push(c);
@@ -480,6 +480,7 @@ function enterCarrier(g, c, k) {
   k.count++;
   k.shutT = DOOR.pull + DOOR.shut;
   k.cats.push(c.id);
+  c.by = c.credit;
   g.boxed++;
   if (g.stats.firstBoxed == null) g.stats.firstBoxed = c.id;
   if (wasSprint && c.type === 'zoomer') { g.stats.zoomies = true; c.zoomed = true; }
@@ -557,6 +558,10 @@ function updateCat(g, c, dt) {
     case S.boxed:
       return;
     case S.enter: {
+      if (!c.hop) {
+        const k = g.carriers[c.carrier] ?? g.carriers[0];
+        c.hop = { fx: c.x, fz: c.z, tx: k ? k.x : c.x, tz: k ? k.z : c.z };
+      }
       const t = clamp(1 - c.tt / DOOR.pull, 0, 1);
       const e = t * t * (3 - 2 * t);
       c.x = c.hop.fx + (c.hop.tx - c.hop.fx) * e;
@@ -586,7 +591,8 @@ function updateCat(g, c, dt) {
     }
     case S.hop: {
       const hp = c.hop;
-      if (!hp) { setState(c, S.idle, 1); return; }
+      // a predicting copy that only heard of the hop from the host waits for the next word
+      if (!hp) { if (g.authority) setState(c, S.idle, 1); else c.sp = 0; return; }
       const t = clamp(1 - c.tt / CAT.hop, 0, 1);
       c.x = hp.fx + (hp.tx - hp.fx) * t;
       c.z = hp.fz + (hp.tz - hp.fz) * t;
@@ -650,7 +656,7 @@ function updateCat(g, c, dt) {
     }
     case S.runhide: {
       const hp = c.hop;
-      if (!hp) { setState(c, S.flee, 0.5); return; }
+      if (!hp) { if (g.authority) setState(c, S.flee, 0.5); else c.sp = 0; return; }
       const d = Math.hypot(hp.ex - c.x, hp.ez - c.z);
       if (d < 0.35) {
         c.x = hp.hx;
@@ -1118,6 +1124,7 @@ export function step(g, dt = STEP) {
       c.sp = 0;
     }
     if (!Number.isFinite(c.h)) c.h = 0;
+    else if (c.h > Math.PI || c.h < -Math.PI) c.h = angTo(0, c.h);
     if (c.st !== S.hop && c.st !== S.perch && c.st !== S.bump) c.y = 0;
   }
   separate(g);

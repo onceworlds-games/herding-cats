@@ -299,3 +299,62 @@ export function onMat(c, x, z) {
   if (out < -0.05 || out > DOOR.matD || Math.abs(across) > DOOR.matW / 2) return null;
   return [out, across];
 }
+
+/**
+ * How far a cat has to walk from (x, z) to carrier k's doormat, round the furniture (cached per carrier). The herder
+ * brain uses it to judge a shot by how much nearer it leaves the cat.
+ */
+export function walkToMat(world, k, x, z) {
+  world.matFields ??= [];
+  let f = world.matFields[k.index];
+  const { cols, rows, cell, grid } = world.catPathGrid;
+  if (!f) {
+    f = new Float32Array(cols * rows).fill(Infinity);
+    const free = (i, j) => i >= 0 && j >= 0 && i < cols && j < rows && grid[j * cols + i] === 0;
+    // Dijkstra over the grid from the mat's cells (8-way; small grids, a simple bucket queue is plenty)
+    const queue = [];
+    const mx = k.doorX + k.nx * 0.6;
+    const mz = k.doorZ + k.nz * 0.6;
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        if (!free(i, j)) continue;
+        const x0 = (i + 0.5) * cell;
+        const z0 = (j + 0.5) * cell;
+        if (Math.hypot(x0 - mx, z0 - mz) < 0.8) { f[j * cols + i] = 0; queue.push(j * cols + i); }
+      }
+    }
+    for (let qi = 0; qi < queue.length; qi++) {
+      const cur = queue[qi];
+      const ci = cur % cols;
+      const cj = (cur - ci) / cols;
+      for (let dj = -1; dj <= 1; dj++) {
+        for (let di = -1; di <= 1; di++) {
+          if (!di && !dj) continue;
+          const ni = ci + di;
+          const nj = cj + dj;
+          if (!free(ni, nj)) continue;
+          if (di && dj && (!free(ci + di, cj) || !free(ci, cj + dj))) continue;
+          const nk = nj * cols + ni;
+          const d = f[cur] + (di && dj ? 1.4142 : 1) * cell;
+          if (d < f[nk] - 1e-6) { f[nk] = d; queue.push(nk); }
+        }
+      }
+    }
+    world.matFields[k.index] = f;
+  }
+  const i = Math.floor(x / cell);
+  const j = Math.floor(z / cell);
+  let best = Infinity;
+  for (let r = 0; r < 3 && best === Infinity; r++) {
+    for (let dj = -r; dj <= r; dj++) {
+      for (let di = -r; di <= r; di++) {
+        const ii = i + di;
+        const jj = j + dj;
+        if (ii < 0 || jj < 0 || ii >= cols || jj >= rows) continue;
+        const v = f[jj * cols + ii];
+        if (v < best) best = v + r * cell;
+      }
+    }
+  }
+  return best;
+}

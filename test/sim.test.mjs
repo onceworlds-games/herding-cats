@@ -21,7 +21,7 @@ const run = (g, seconds, each) => {
   }
 };
 
-test('a cat stops and glances for 150-250 ms before it walks away from you', () => {
+test('a cat stops and glances for 100-200 ms before it walks away from you', () => {
   for (const type of ['moggy', 'zoomer', 'scaredy', 'glutton', 'kitten', 'boss']) {
     const g = setup([{ type, x: 10, z: 7, h: 0 }]);
     const c = g.cats[0];
@@ -38,7 +38,7 @@ test('a cat stops and glances for 150-250 ms before it walks away from you', () 
     });
     assert.ok(alertAt != null && fleeAt != null, `${type} alerted and fled`);
     const tell = fleeAt - alertAt;
-    assert.ok(tell >= 0.14 && tell <= 0.27, `${type} tell ${tell.toFixed(3)} s`);
+    assert.ok(tell >= 0.09 && tell <= 0.21, `${type} tell ${tell.toFixed(3)} s`);
   }
 });
 

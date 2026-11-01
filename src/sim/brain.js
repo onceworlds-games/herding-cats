@@ -2,9 +2,10 @@
 // the trailer's autoplay and the balance tests all use it. It only touches what a player touches: a move direction and
 // the two buttons (with the same cooldowns).
 
-import { S, TYPES, TREATS, CLAP, PERSON } from './tuning.js';
+import { S, TYPES, CLAP, PERSON, LASER } from './tuning.js';
 import { makeRng } from './rng.js';
-import { lineClear, findPath, onMat, blockedPerson, normalNear } from './world.js';
+import { lineClear, findPath, onMat, blockedPerson, normalNear, walkToMat } from './world.js';
+import { clapPreview, shotPath } from './motion.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const TAU = Math.PI * 2;
@@ -12,6 +13,58 @@ const angTo = (a, b) => ((((b - a) % TAU) + TAU + Math.PI) % TAU) - Math.PI;
 const OUT = new Set([S.boxed, S.enter]);
 
 const STAND = { moggy: 1.9, loaf: 1.7, zoomer: 2.0, scaredy: 3.9, glutton: 1.5, kitten: 1.25, boss: 2.0 };
+// cats that only a clap moves
+const SETTLED = new Set([S.nap, S.boxsit, S.ride, S.sleep]);
+
+/** How good a spot is to shoot a cat in from: near the door by foot, better still in front of it with a clear run. */
+function spotValue(g, k, x, z) {
+  const rx = x - k.doorX;
+  const rz = z - k.doorZ;
+  const rl = Math.hypot(rx, rz) || 1;
+  const front = (rx * k.nx + rz * k.nz) / rl > 0.55 && rl < 5.5 && lineClear(g.world, x, z, k.matX, k.matZ, true);
+  return -walkToMat(g.world, k, x, z) + (front ? 3 : 0);
+}
+
+/** For a cat only a clap moves: the reachable spot to clap from whose shot gets it furthest toward the door (or in). */
+function planShot(g, p, b, c, k, mp) {
+  if (b.plan && b.plan.c === c.id && b.plan.t > g.time) return b.plan;
+  const kind = c.type === 'loaf' ? 'scoot' : 'bolt';
+  const d0 = -spotValue(g, k, c.x, c.z);
+  let best = null;
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * TAU;
+    const path = shotPath(g, c, a, kind);
+    const end = path.pts[path.pts.length - 1];
+    const mine = path.end === 'in' && (g.mode !== 'versus' || path.ki === k.index);
+    if (path.end === 'in' && !mine) continue;
+    const gain = mine ? d0 + 6 : d0 + spotValue(g, k, end.x, end.z);
+    for (const r of [1.5, 2.5]) {
+      const sx = c.x - Math.cos(a) * r;
+      const sz = c.z - Math.sin(a) * r;
+      if (sx < 0.5 || sz < 0.5 || sx > g.world.w - 0.5 || sz > g.world.d - 0.5 || blockedPerson(g.world, sx, sz)) continue;
+      if (!lineClear(g.world, sx, sz, c.x, c.z, false) && c.st !== S.ride) continue;
+      const score = gain - Math.hypot(sx - p.x, sz - p.z) * 0.12;
+      if (!best || score > best.score) best = { c: c.id, x: sx, z: sz, a, score, gain, t: g.time + 1.2 };
+      break;
+    }
+  }
+  b.plan = best;
+  return best;
+}
+
+/** What a clap from where p stands would do: cats shot into p's carrier, cats shot into someone else's, Scaredies spooked. */
+export function clapValue(g, p, k) {
+  let ins = 0;
+  let gifts = 0;
+  let hides = 0;
+  for (const e of clapPreview(g, p.x, p.z)) {
+    if (e.kind === 'hide') { hides++; continue; }
+    if (e.path.end !== 'in') continue;
+    if (g.mode === 'versus' && e.path.ki !== k.index) gifts++;
+    else ins++;
+  }
+  return { ins, gifts, hides };
+}
 
 /** style: 'shepherd' | 'clapper' | 'poacher'. skill 0..1. */
 export function createBrain({ skill = 0.6, style = 'shepherd', seed = 1 } = {}) {
@@ -221,6 +274,39 @@ export function think(g, p, b, dt) {
     return out;
   }
 
+  // a clap that puts a cat (or two) in, right now
+  if (p.clapCd <= 0 && b.rng.chance(0.35 + b.skill * 0.65)) {
+    const v = clapValue(g, p, k);
+    if (v.ins > 0 && v.gifts === 0 && v.hides === 0) out.clap = true;
+  }
+  // the laser pointer: pick it up, then stand off the door pointing in
+  const L = g.laser;
+  if (L && b.skill >= 0.5 && g.mode !== 'catlady') {
+    if (L.on === 1 && L.holder === p.slot) {
+      const sx = k.doorX + k.nx * (LASER.reach + 0.6);
+      const sz = k.doorZ + k.nz * (LASER.reach + 0.6);
+      let d = walkTo(g, p, b, sx, sz);
+      if (Math.hypot(sx - p.x, sz - p.z) < 0.5) {
+        const want = Math.atan2(-k.nz, -k.nx);
+        d = Math.abs(angTo(p.h, want)) > 0.15 ? { x: -k.nx * 0.12, z: -k.nz * 0.12 } : { x: 0, z: 0 };
+      }
+      b.ix = d.x;
+      b.iz = d.z;
+      p.ix = b.ix;
+      p.iz = b.iz;
+      return out;
+    }
+    const looseN = g.cats.filter((o) => !OUT.has(o.st) && !o.surprise && o.type !== 'boss' && o.type !== 'loaf').length;
+    if (L.on === 0 && looseN >= 2 && Math.hypot(L.hx - p.x, L.hz - p.z) < 10) {
+      const d = walkTo(g, p, b, L.hx, L.hz);
+      b.ix = d.x;
+      b.iz = d.z;
+      p.ix = b.ix;
+      p.iz = b.iz;
+      return out;
+    }
+  }
+
   let c = g.cats[b.target];
   if (!c || OUT.has(c.st) || c.surprise || (c.st === S.march && g.cats.some((o) => !OUT.has(o.st) && o.st !== S.march))) {
     b.target = pickTarget(g, p, b, k);
@@ -294,21 +380,26 @@ export function think(g, p, b, dt) {
   // a clap here would send a Scaredy under the furniture: hold it unless the clap is the whole point
   const scaredyNear = g.cats.some((o) => o.type === 'scaredy' && !OUT.has(o.st) && o.st !== S.hidden && Math.hypot(o.x - p.x, o.z - p.z) < TYPES.scaredy.hideClap + 0.5);
   let move;
-  if (c.type === 'loaf') {
-    // a Loaf never moves for walking: stand right behind it and clap (a little off the line if furniture is in the way)
+  if (c.type === 'loaf' || SETTLED.has(c.st)) {
+    // a Loaf (or a napping, boxed-up or riding cat) only moves for a clap: find the spot whose shot (as previewed) does
+    // most, off a wall if need be, walk there and clap
+    const plan = planShot(g, p, b, c, k, mp);
     let lx = sx;
     let lz = sz;
-    let la = 0;
-    for (const da of [0, 0.3, -0.3, 0.6, -0.6, 0.9, -0.9]) {
-      const qx = c.x - Math.cos(ua + da) * sd;
-      const qz = c.z - Math.sin(ua + da) * sd;
-      if (qx > 0.5 && qz > 0.5 && qx < g.world.w - 0.5 && qz < g.world.d - 0.5 && !blockedPerson(g.world, qx, qz)) { lx = qx; lz = qz; la = da; break; }
-    }
+    if (plan) { lx = plan.x; lz = plan.z; }
     move = walkTo(g, p, b, lx, lz);
     const at = Math.hypot(lx - p.x, lz - p.z);
-    if (at < 0.35) move = { x: 0, z: 0 };
-    const facing = -((p.x - c.x) * Math.cos(ua + la) + (p.z - c.z) * Math.sin(ua + la)) / rl;
-    if (p.clapCd <= 0 && at < 0.5 && facing > 0.95 && rl < CLAP.radius - 0.6 && (!scaredyNear || b.skill < 0.5)) out.clap = true;
+    if (at < 0.3) move = { x: 0, z: 0 };
+    if (p.clapCd <= 0 && rl < CLAP.radius - 0.3 && (!scaredyNear || b.skill < 0.5) && (at < 0.45 || g.time - b.bestAt > 6)) {
+      const prev = clapPreview(g, p.x, p.z);
+      const mine = prev.find((e) => e.c === c && e.kind === 'shot');
+      const gifts = g.mode === 'versus' && prev.some((e) => e.kind === 'shot' && e.path.end === 'in' && e.path.ki !== k.index);
+      if (mine && !gifts) {
+        const end = mine.path.pts[mine.path.pts.length - 1];
+        const gain = mine.path.end === 'in' ? 9 : spotValue(g, k, end.x, end.z) - spotValue(g, k, c.x, c.z);
+        if (gain > 0.6 || mine.path.end === 'in') { out.clap = true; b.plan = null; }
+      }
+    }
   } else if (behind > 0.86 && rl < reach + 0.6) {
     // pushing: hold the stand-off and lean in
     const lean = wp.final ? 0.55 : 0.85;

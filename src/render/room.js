@@ -9,10 +9,11 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { KIT } from '../sim/kit.js';
 import { kitModel, kitSurface, surface } from './assets.js';
 import { SUN_DIR } from './stage.js';
+import { roomWindows, isOutdoor, SILL, WIN_TOP, WIN_W } from '../sim/sun.js';
 
 export const WALL_H = 2.6;
 export const WALL_T = 0.22;
-const SILL = 0.95, WIN_TOP = 2.25, WIN_W = 1.5, WAINS = 0.8;
+const WAINS = 0.8;
 
 // ---------------------------------------------------------------- palette
 export const PAL = {
@@ -741,25 +742,7 @@ function propMesh(kind, ci) {
 }
 
 // ---------------------------------------------------------------- the room
-export function isOutdoor(room) {
-  return room.wall === 'glass' || room.wall === 'white' || (room.wall === 'brick' && (room.floor === 'grass' || room.floor === 'stone'));
-}
-
-/** Where windows go along a wall: spots clear of tall things standing against it. */
-function windowSpots(len, blocked) {
-  const out = [];
-  const n = Math.max(1, Math.round(len / 4.5));
-  const step = len / n;
-  for (let i = 0; i < n; i++) {
-    const c = step * (i + 0.5);
-    for (const shift of [0, 0.7, -0.7, 1.4, -1.4]) {
-      const x = c + shift;
-      if (x - WIN_W / 2 < 0.6 || x + WIN_W / 2 > len - 0.4) continue;
-      if (!blocked.some(([a, b]) => x + WIN_W / 2 + 0.1 > a && x - WIN_W / 2 - 0.1 < b)) { out.push(x); break; }
-    }
-  }
-  return out;
-}
+export { isOutdoor };
 
 let glowTex = null;
 function glowTexture() {
@@ -984,8 +967,9 @@ export function buildRoom(room, world, { quality = 'high', onLand = null } = {})
       group.add(b);
     }
   } else if (wallH > 0) {
-    const nSpots = outdoor ? [] : windowSpots(W, near('x'));
-    const wSpots = outdoor ? [] : windowSpots(D, near('z'));
+    const wins = roomWindows(room, world);
+    const nSpots = wins.filter((w) => w.axis === 'x').map((w) => w.c);
+    const wSpots = wins.filter((w) => w.axis === 'z').map((w) => w.c);
     group.add(buildWall('x', W, nSpots, wallH));
     group.add(buildWall('z', D, wSpots, wallH));
   } else if (room.wall === 'white') {

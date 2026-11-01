@@ -93,8 +93,8 @@ test('pages that predict agree with the host and never let a cat snap', () => {
       });
     },
   });
-  // a cat at full sprint moves 0.12 u a frame: a drawn jump much bigger than that would be a visible snap
-  assert.ok(worstJump < 0.45, `worst drawn jump ${worstJump.toFixed(3)} u`);
+  // a shot cat moves 0.23 u a step: a drawn jump much bigger than that would be a visible snap
+  assert.ok(worstJump < 0.6, `worst drawn jump ${worstJump.toFixed(3)} u`);
   assert.ok(maxErr < 2.5, `prediction strays ${maxErr.toFixed(2)} u`);
 });
 

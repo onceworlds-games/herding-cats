@@ -3,23 +3,28 @@
 // reactive steering (fleeing, lures, bolts, sprints) and leaves every decision (going in, hiding, perching, new wanders) to
 // the host's snapshots.
 
-import { STEP, PERSON, TREATS, CLAP, DOOR, CAT, TYPES, S, ROUND, CATLADY } from './tuning.js';
+import { STEP, PERSON, TREATS, CLAP, DOOR, CAT, TYPES, S, CATLADY, COMBO, LASER, VAC, BELL, BOX, SUN } from './tuning.js';
 import { makeRng, hash } from './rng.js';
-import { buildWorld, resolve, freeAhead, normalNear, nearestHide, freeSpot, onMat, blockedCat, findPath, overlaps } from './world.js';
+import { buildWorld, resolve, freeAhead, normalNear, nearestHide, freeSpot, onMat, findPath, overlaps } from './world.js';
+import { threat, shotStep, knockable, touchGap, hopSpot, doorFor } from './motion.js';
+import { sunPatches, inSun } from './sun.js';
 
 const TAU = Math.PI * 2;
 const angTo = (a, b) => ((((b - a) % TAU) + TAU + Math.PI) % TAU) - Math.PI;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
 
-const CALM = new Set([S.idle, S.walk, S.settle, S.follow]);
-const CAN_ENTER = new Set([S.flee, S.settle, S.walk, S.bolt, S.trot, S.slip, S.scoot, S.sprint, S.march, S.lured, S.stalk, S.follow, S.idle]);
-const IGNORES_PUSH = new Set([S.enter, S.boxed, S.bump, S.hop, S.perch, S.runhide, S.hidden, S.creep, S.sleep, S.scoot, S.wiggle, S.sprint, S.slip, S.crouch, S.lured, S.content, S.bolt, S.hold, S.arrive, S.snub, S.stalk]);
+const CALM = new Set([S.idle, S.walk, S.settle, S.follow, S.seek]);
+const CAN_ENTER = new Set([S.flee, S.settle, S.walk, S.bolt, S.trot, S.slip, S.scoot, S.sprint, S.march, S.lured, S.stalk, S.follow, S.idle, S.chase, S.seek]);
+const IGNORES_PUSH = new Set([S.enter, S.boxed, S.bump, S.hop, S.perch, S.runhide, S.hidden, S.creep, S.sleep, S.scoot, S.wiggle, S.sprint, S.slip, S.crouch, S.lured, S.content, S.bolt, S.trot, S.hold, S.arrive, S.snub, S.stalk, S.chase, S.ride, S.boxsit, S.nap]);
 const OUT = new Set([S.enter, S.boxed]);
+// what the laser dot pulls away from whatever it was doing
+const CHASERS = new Set([S.idle, S.walk, S.alert, S.flee, S.settle, S.follow, S.content, S.seek, S.nap, S.lured, S.snub]);
 
 /**
  * opts: { room, mode: 'level' | 'versus' | 'together' | 'catlady' | 'ambient', cats: [{ type, coat, x, z, gang, perch, surprise }],
- *         seed, clock, authority = true, owners: [seatId per carrier] }
+ *         seed, clock, authority = true, owners: [seatId per carrier],
+ *         twists: { laser: { x, z, delay }, vacs: [{ x, z, h }], bell: { every, first }, boxes: [{ x, z }], sun: false } }
  */
 export function createGame(opts) {
   const world = buildWorld(opts.room);
@@ -32,8 +37,18 @@ export function createGame(opts) {
     cats: [], people: [], events: [], evSeq: 0,
     carriers: world.carriers.map((c, i) => ({ ...c, count: 0, shutT: 0, busy: 0, owner: opts.owners?.[i] ?? null, closed: false, cats: [] })),
     total: 0, boxed: 0, spawned: 0, spawnT: 0, bonus: CATLADY.bonus,
-    stats: { zoomies: false, bossFirst: null, firstBoxed: null },
+    stats: {
+      zoomies: false, bossFirst: null, firstBoxed: null, bestCombo: 0, combos: 0, banks: 0, chains: 0, knocks: 0, claps: 0,
+      treats: 0, crashes: 0, laserIns: 0, rides: 0, deliveries: 0, loafShot: false, shots: 0,
+    },
   };
+  const tw = opts.twists ?? {};
+  g.suns = tw.sun === false ? [] : sunPatches(opts.room, world);
+  g.laser = tw.laser ? { hx: tw.laser.x, hz: tw.laser.z, x: tw.laser.x, z: tw.laser.z, on: tw.laser.delay ? 2 : 0, holder: -1, t: tw.laser.delay ?? 0 } : null;
+  g.vacs = (tw.vacs ?? []).map((v) => ({ x: v.x, z: v.z, h: v.h ?? 0, rider: -1, turns: 0 }));
+  g.bell = tw.bell ? { x: opts.room.entry?.x ?? 0, z: opts.room.entry?.z ?? 0, every: tw.bell.every, next: tw.bell.first ?? tw.bell.every, warned: false } : null;
+  g.boxes = (tw.boxes ?? []).map((b) => ({ x: b.x, z: b.z, vx: 0, vz: 0, cat: -1, h: b.h ?? 0 }));
+  for (const b of g.boxes) { const pos = { x: b.x, z: b.z }; resolve(world, pos, BOX.radius); b.x = pos.x; b.z = pos.z; }
   (opts.cats ?? []).forEach((spec) => addCat(g, spec));
   g.total = g.cats.filter((c) => !c.surprise).length;
   return g;
@@ -59,7 +74,7 @@ export function addCat(g, spec) {
     zoomT: T.zoomEvery ? r.range(T.zoomEvery[0], T.zoomEvery[1]) : 0,
     aim: 0, lureBy: -1, carrier: -1, hop: null, path: null, pathT: 0,
     followIn: null, swatted: false, surprise: !!spec.surprise, credit: null, creditT: 0, by: null, entering: false, zoomed: false,
-    look: -1, glance: 0,
+    look: -1, glance: 0, keep: 1, bounces: 0, chain: 0, claps: 0, how: null,
   };
   g.cats.push(c);
   if (spec.perch != null) placeOnPerch(g, c, spec.perch);
@@ -117,6 +132,7 @@ export function treats(g, p) {
   p.treatsCd = TREATS.cooldown;
   p.treatsSeq++;
   p.lastShake = g.time;
+  g.stats.treats++;
   emit(g, 'treats', { p: p.slot, x: p.x, z: p.z });
   for (const c of g.cats) applyTreats(g, c, p);
   return true;
@@ -127,6 +143,7 @@ export function clap(g, p) {
   p.clapCd = CLAP.cooldown;
   p.clapSeq++;
   p.lastClap = g.time;
+  g.stats.claps++;
   emit(g, 'clap', { p: p.slot, x: p.x, z: p.z });
   for (const c of g.cats) applyClap(g, c, p);
   return true;
@@ -142,6 +159,11 @@ function applyTreats(g, c, p) {
   }
   if (!T.lure || d > T.lure) return;
   if (c.st === S.perch) return hopDown(g, c, p.x - c.x, p.z - c.z, S.lured, T.lureTime, p.slot);
+  if (c.st === S.chase) return; // the dot wins
+  if (c.st === S.ride || c.st === S.boxsit) {
+    leaveSeat(g, c);
+    return hopOff(g, c, p.x - c.x, p.z - c.z, S.lured, T.lureTime, p.slot);
+  }
   if (c.st === S.hidden) {
     if (!g.authority) return;
     setState(c, S.creep, 0.6);
@@ -158,43 +180,132 @@ function applyTreats(g, c, p) {
 }
 
 function applyClap(g, c, p) {
+  scatter(g, c, p.x, p.z, CLAP.radius, p.id, true);
+}
+
+/** A clap (or the doorbell) at (x, z): every cat in reach is shot straight away from it; a Scaredy dives for cover. */
+function scatter(g, c, x, z, radius, credit, clapped = false) {
   if (OUT.has(c.st)) return;
   const T = TYPES[c.type];
-  const dx = c.x - p.x;
-  const dz = c.z - p.z;
+  const dx = c.x - x;
+  const dz = c.z - z;
   const d = Math.hypot(dx, dz);
   const away = Math.atan2(dz, dx);
-  if (c.type === 'scaredy' && d < T.hideClap && c.st !== S.hidden) {
+  if (c.type === 'scaredy' && d < T.hideClap && c.st !== S.hidden && c.st !== S.ride && c.st !== S.boxsit) {
     if (g.authority) startHide(g, c);
     return;
   }
-  if (d > CLAP.radius) return;
-  c.credit = p.id;
-  c.creditT = 3;
-  if (c.st === S.hidden) return;
-  if (c.st === S.perch) return hopDown(g, c, dx, dz, S.bolt, CLAP.boltTime);
-  if (c.st === S.hop || c.st === S.enter || c.st === S.bump) return;
-  if (c.type === 'loaf') {
-    setState(c, S.scoot, T.scootTime);
-    c.h = away;
-    c.aim = away;
-    return;
-  }
+  if (d > radius) return;
+  if (credit) { c.credit = credit; c.creditT = 3; }
+  if (c.st === S.hidden || c.st === S.hop || c.st === S.enter || c.st === S.bump || c.st === S.creep) return;
+  if (clapped) c.claps++;
+  if (c.st === S.perch) return hopTo(g, c, hopSpot(g.world, c, dx, dz), S.bolt, CLAP.boltTime);
   if (c.type === 'boss') {
     setState(c, S.stalk, T.stalkTime);
     c.aim = away;
     return;
   }
+  if (c.st === S.ride || c.st === S.boxsit) leaveSeat(g, c);
+  g.stats.shots++;
+  if (c.type === 'loaf') return startShot(g, c, S.scoot, T.scootTime, away);
   if (c.type === 'zoomer' && c.st === S.wiggle) {
     c.aim = away;
     startSprint(g, c);
     return;
   }
-  setState(c, S.bolt, CLAP.boltTime);
-  c.aim = away;
-  c.h = away;
-  c.sp = Math.max(c.sp, CLAP.bolt * 0.8);
+  startShot(g, c, S.bolt, CLAP.boltTime, away);
+}
+
+function startShot(g, c, st, tt, a) {
+  setState(c, st, tt);
+  c.aim = a;
+  c.h = a;
+  c.keep = 1;
+  c.bounces = 0;
+  c.chain = 0;
+  c.y = 0;
+  c.sp = st === S.scoot ? (TYPES.loaf.scoot / TYPES.loaf.scootTime) * 2 : CLAP.bolt;
   c.fleeMem = 1.5;
+}
+
+const SHOT = { x: 0, z: 0, h: 0, sp: 0, r: 0 };
+/** One step of a shot cat: straight on, off walls and furniture, into other cats. False when the hit stopped it dead. */
+function shotTick(g, c, speed, dt) {
+  SHOT.x = c.x;
+  SHOT.z = c.z;
+  SHOT.h = c.h;
+  SHOT.sp = speed;
+  SHOT.r = CAT.radius * c.size;
+  const bounced = shotStep(g.world, SHOT, dt);
+  c.vx = (SHOT.x - c.x) / dt;
+  c.vz = (SHOT.z - c.z) / dt;
+  c.x = SHOT.x;
+  c.z = SHOT.z;
+  c.h = SHOT.h;
+  c.aim = SHOT.h;
+  c.sp = speed;
+  if (bounced) {
+    c.keep = Math.max(CLAP.minKeep, c.keep * CLAP.keep);
+    c.bounces++;
+    emit(g, 'bounce', { c: c.id, x: c.x, z: c.z });
+  }
+  for (const o of g.cats) {
+    if (!knockable(c, o)) continue;
+    const dx = o.x - c.x;
+    const dz = o.z - c.z;
+    const d = Math.hypot(dx, dz);
+    if (d >= touchGap(c, o) || d < 1e-6) continue;
+    const nx = dx / d;
+    const nz = dz / d;
+    const vx = Math.cos(c.h);
+    const vz = Math.sin(c.h);
+    const vn = vx * nx + vz * nz;
+    if (vn <= 0.15) continue;
+    knock(g, c, o, nx, nz, vn);
+    // like a ball: the striker keeps what was across the line between them; head on, it stops dead
+    const tx = vx - vn * nx;
+    const tz = vz - vn * nz;
+    const tl = Math.hypot(tx, tz);
+    if (tl < 0.35) {
+      setState(c, S.settle, CAT.settle);
+      c.sp *= 0.25;
+      c.fleeMem = 1;
+      return false;
+    }
+    c.h = Math.atan2(tz, tx);
+    c.aim = c.h;
+    c.keep = Math.max(CLAP.minKeep, c.keep * tl);
+    break;
+  }
+  return true;
+}
+
+/** Cat c's shot hits cat o: o runs on along the line between them (a Loaf slides, a wiggling Zoomer launches). */
+function knock(g, c, o, nx, nz, vn) {
+  const a = Math.atan2(nz, nx);
+  if (c.credit) { o.credit = c.credit; o.creditT = 3; }
+  if (o.type === 'loaf') startShot(g, o, S.scoot, TYPES.loaf.scootTime, a);
+  else if (o.type === 'zoomer' && o.st === S.wiggle) { o.aim = a; startSprint(g, o); o.keep = 1; o.bounces = 0; }
+  else startShot(g, o, S.bolt, CLAP.boltTime, a);
+  o.keep = Math.max(0.55, Math.min(1, c.keep * (0.45 + 0.6 * vn)));
+  o.chain = (c.chain | 0) + 1;
+  g.stats.knocks++;
+  emit(g, 'knock', { c: o.id, o: c.id, x: (c.x + o.x) / 2, z: (c.z + o.z) / 2 });
+}
+
+/** Off the vacuum or out of the box. */
+function leaveSeat(g, c) {
+  if (c.st === S.ride) { const v = g.vacs[c.a]; if (v && v.rider === c.id) v.rider = -1; }
+  if (c.st === S.boxsit) { const b = g.boxes[c.a]; if (b && b.cat === c.id) b.cat = -1; }
+  c.y = 0;
+}
+
+/** A little hop off a seat (the vacuum, a box) toward (dx, dz). */
+function hopOff(g, c, dx, dz, next, nextT, lureBy = -1) {
+  const l = Math.hypot(dx, dz) || 1;
+  const pos = { x: c.x + (dx / l) * 0.85, z: c.z + (dz / l) * 0.85 };
+  resolve(g.world, pos, CAT.radius * c.size);
+  hopTo(g, c, pos, next, nextT, lureBy);
 }
 
 function setState(c, st, tt) {
@@ -265,42 +376,6 @@ export function placePerson(g, p, x, z, dt) {
 }
 
 // ------------------------------------------------------------------ cats
-
-function threat(g, c) {
-  const T = TYPES[c.type];
-  const R = T.flee;
-  if (!R) return null;
-  let fx = 0;
-  let fz = 0;
-  let pressure = 0;
-  let near = Infinity;
-  let who = -1;
-  for (const p of g.people) {
-    if (!p.active) continue;
-    const dx = c.x - p.x;
-    const dz = c.z - p.z;
-    const d = Math.hypot(dx, dz);
-    if (d >= R) continue;
-    const w = (R - d) / R;
-    const dd = Math.max(d, 0.05);
-    fx += (dx / dd) * w;
-    fz += (dz / dd) * w;
-    const pr = clamp((R - d) / Math.max(0.5, R - 1), 0, 1);
-    if (pr > pressure) pressure = pr;
-    if (d < near) { near = d; who = p.slot; }
-  }
-  if (who < 0) return null;
-  const l = Math.hypot(fx, fz);
-  if (l < 1e-6) {
-    const p = g.people[who];
-    fx = Math.cos(p.h);
-    fz = Math.sin(p.h);
-  } else {
-    fx /= l;
-    fz /= l;
-  }
-  return { fx, fz, pressure, near, who };
-}
 
 function nearestPerson(g, c, within = Infinity) {
   let best = null;
@@ -399,34 +474,19 @@ function startSprint(g, c) {
   const T = TYPES[c.type];
   setState(c, S.sprint, T.sprintTime);
   c.h = c.aim;
-  c.sp = T.sprint * 0.85;
+  c.sp = T.sprint;
+  c.keep = 1;
+  c.bounces = 0;
+  c.chain = 0;
   c.zoomT = g.rng.range(T.zoomEvery[0], T.zoomEvery[1]);
   emit(g, 'zoom', { c: c.id });
 }
 
 function hopDown(g, c, dx, dz, next, nextT, lureBy = -1) {
-  const s = g.world.solids[c.a];
-  let l = Math.hypot(dx, dz);
-  if (l < 1e-6) { dx = 1; dz = 0; l = 1; }
-  dx /= l;
-  dz /= l;
-  const tries = [[dx, dz], [-dz, dx], [dz, -dx], [-dx, -dz]];
-  let target = null;
-  if (s) {
-    for (const [tx, tz] of tries) {
-      // walk out from the middle until the cat is clear of the piece
-      for (let t = 0.3; t < 3; t += 0.15) {
-        const x = c.x + tx * t;
-        const z = c.z + tz * t;
-        const inside = x > s.x0 - 0.3 && x < s.x1 + 0.3 && z > s.z0 - 0.3 && z < s.z1 + 0.3;
-        if (inside) continue;
-        if (!blockedCat(g.world, x, z)) target = { x, z };
-        break;
-      }
-      if (target) break;
-    }
-  }
-  if (!target) target = { x: c.x + dx * 0.8, z: c.z + dz * 0.8 };
+  hopTo(g, c, hopSpot(g.world, c, dx, dz), next, nextT, lureBy);
+}
+
+function hopTo(g, c, target, next, nextT, lureBy = -1) {
   c.hop = { fx: c.x, fz: c.z, fy: c.y, tx: target.x, tz: target.z, ty: 0, next, nextT, lureBy };
   setState(c, S.hop, CAT.hop);
   c.h = Math.atan2(target.z - c.z, target.x - c.x);
@@ -470,16 +530,33 @@ function wanderPick(g, c) {
   return a;
 }
 
-function enterCarrier(g, c, k) {
+const TRICKS = ['bank', 'chain', 'laser', 'ride', 'box'];
+export { TRICKS };
+
+function enterCarrier(g, c, k, how = null) {
   const wasSprint = c.st === S.sprint;
+  const shot = c.st === S.bolt || c.st === S.trot || c.st === S.scoot || c.st === S.sprint;
+  how ??= shot && c.chain > 0 ? 'chain' : shot && c.bounces > 0 ? 'bank' : c.st === S.chase ? 'laser' : null;
+  if (c.type === 'loaf' && c.st === S.scoot && c.claps === 1 && c.chain === 0) g.stats.loafShot = true;
   c.entering = true;
   c.hop = { fx: c.x, fz: c.z, tx: k.x, tz: k.z };
   setState(c, S.enter, DOOR.pull);
   c.carrier = k.index;
   c.h = Math.atan2(-k.nz, -k.nx);
   k.count++;
-  k.shutT = DOOR.pull + DOOR.shut;
+  // one after another: a combo
+  const n = g.time - (k.lastIn ?? -99) <= COMBO.window ? (k.combo ?? 0) + 1 : 1;
+  k.combo = n;
+  k.lastIn = g.time;
   k.cats.push(c.id);
+  c.how = how;
+  if (how === 'bank') g.stats.banks++;
+  if (how === 'chain') g.stats.chains++;
+  if (how === 'laser') g.stats.laserIns++;
+  if (how === 'ride') g.stats.rides++;
+  if (how === 'box') g.stats.deliveries++;
+  if (n >= 2) g.stats.combos++;
+  g.stats.bestCombo = Math.max(g.stats.bestCombo, n);
   c.by = c.credit;
   g.boxed++;
   if (g.stats.firstBoxed == null) g.stats.firstBoxed = c.id;
@@ -488,7 +565,9 @@ function enterCarrier(g, c, k) {
     const gangOut = g.cats.some((o) => o.gang === c.id && o.st === S.boxed);
     g.stats.bossFirst = gangOut ? -1 : k.index;
   }
-  emit(g, 'in', { c: c.id, ki: k.index, by: c.credit, zoom: wasSprint && c.type === 'zoomer' });
+  emit(g, 'in', { c: c.id, ki: k.index, by: c.credit, zoom: wasSprint && c.type === 'zoomer', n, how });
+  if (how) emit(g, 'trick', { c: c.id, ki: TRICKS.indexOf(how), x: k.matX, z: k.matZ });
+  if (n >= 2) emit(g, 'combo', { c: n, ki: k.index, x: k.matX, z: k.matZ });
   // kittens tumble in after their cat; a gang goes with its Boss
   for (const o of g.cats) {
     if (OUT.has(o.st)) continue;
@@ -499,7 +578,7 @@ function enterCarrier(g, c, k) {
       o.followIn = { k: k.index, t: 0.4 + o.id * 0.05 };
     }
   }
-  if (g.mode === 'catlady') g.clock = Math.min(g.clock + g.bonus, 600);
+  if (g.mode === 'catlady') g.clock = Math.min(g.clock + g.bonus + (n - 1) * 3, 600);
   if (g.mode === 'catlady') g.bonus = Math.max(CATLADY.bonusMin, g.bonus - CATLADY.bonusDrop);
 }
 
@@ -507,7 +586,7 @@ function checkDoor(g, c) {
   if (!CAN_ENTER.has(c.st)) return;
   const sp = Math.hypot(c.vx, c.vz);
   // marching cats and cats following treats go in on any step over the mat that isn't leaving it
-  const relaxed = c.st === S.march || c.st === S.lured;
+  const relaxed = c.st === S.march || c.st === S.lured || c.st === S.chase;
   for (const k of g.carriers) {
     if (k.closed) continue;
     const m = onMat(k, c.x, c.z);
@@ -518,12 +597,6 @@ function checkDoor(g, c) {
     if (!g.authority) {
       setState(c, S.hold, 0.6);
       c.carrier = k.index;
-      return;
-    }
-    if (k.shutT > 0) {
-      c.hop = { fx: c.x, fz: c.z, tx: c.x + k.nx * 0.8, tz: c.z + k.nz * 0.8 };
-      setState(c, S.bump, 0.3);
-      emit(g, 'bump', { c: c.id, ki: k.index });
       return;
     }
     enterCarrier(g, c, k);
@@ -542,6 +615,13 @@ function updateCat(g, c, dt) {
   if (c.wobT <= 0) {
     c.wobT = 0.5;
     c.wob = (((hash(`${c.id}:${Math.floor(g.time * 2)}`) % 1000) / 1000) * 2 - 1) * CAT.wobble;
+  }
+
+  // the laser dot: everyone near it (but the Boss and a Loaf) drops everything
+  const L = g.laser;
+  if (L && L.on === 1 && CHASERS.has(c.st) && c.type !== 'boss' && c.type !== 'loaf' && Math.hypot(L.x - c.x, L.z - c.z) < LASER.radius) {
+    setState(c, S.chase, 99);
+    c.followIn = null;
   }
 
   // a kitten or gang cat that saw its cat go in follows it
@@ -605,9 +685,10 @@ function updateCat(g, c, dt) {
         const next = hp.next ?? S.idle;
         setState(c, next, hp.nextT ?? 1);
         if (next === S.lured) c.lureBy = hp.lureBy ?? -1;
-        if (next === S.bolt) c.aim = c.h;
+        if (next === S.bolt) startShot(g, c, S.bolt, hp.nextT ?? CLAP.boltTime, c.h);
         c.hop = null;
         if (next !== S.perch) c.y = 0;
+        if (next === S.boxsit) emit(g, 'boxsit', { c: c.id });
       }
       return;
     }
@@ -679,15 +760,83 @@ function updateCat(g, c, dt) {
       c.vz = 0;
       return;
     }
-    case S.scoot: {
-      const t = clamp(1 - c.tt / T.scootTime, 0, 1);
-      const sp = (T.scoot / T.scootTime) * 2 * (1 - t);
-      c.sp = sp;
-      moveCat(g, c, c.aim, sp, 20, dt);
-      c.sp = sp;
-      c.h = c.aim;
+    case S.bolt: case S.trot: case S.scoot: case S.sprint: {
+      // a shot: dead straight, off walls, into other cats
+      let base;
+      if (c.st === S.bolt) base = CLAP.bolt;
+      else if (c.st === S.trot) base = CLAP.trot;
+      else if (c.st === S.sprint) base = T.sprint;
+      else base = (T.scoot / T.scootTime) * 2 * (1 - clamp((T.scootTime - c.tt - dt) / T.scootTime, 0, 1));
+      const st = c.st;
+      if (!shotTick(g, c, base * c.keep, dt)) return;
       checkDoor(g, c);
-      if (c.st === S.scoot && c.tt <= 0) { setState(c, S.sleep, 999); c.sp = 0; }
+      if (c.st !== st || c.tt > 0) return;
+      if (st === S.bolt) setState(c, S.trot, CLAP.trotTime);
+      else if (st === S.sprint) setState(c, S.trot, 0.6);
+      else if (st === S.scoot) { setState(c, S.sleep, 999); c.sp = 0; }
+      else { setState(c, S.settle, CAT.settle); c.fleeMem = 1; }
+      return;
+    }
+    case S.chase: {
+      const Lz = g.laser;
+      if (!Lz || Lz.on !== 1) { setState(c, S.settle, CAT.settle); return; }
+      // a dot at a door: come at the door from in front, so it pulls the cat in
+      let tx = Lz.x;
+      let tz = Lz.z;
+      const k = g.carriers.find((kk) => !kk.closed && Math.hypot(kk.doorX - Lz.x, kk.doorZ - Lz.z) < LASER.near);
+      if (k) {
+        const m = onMat(k, c.x, c.z);
+        const front = m && Math.abs(m[1]) < DOOR.matW / 2 - 0.1;
+        tx = front ? k.doorX - k.nx * 0.4 : k.matX + k.nx * 0.5;
+        tz = front ? k.doorZ - k.nz * 0.4 : k.matZ + k.nz * 0.5;
+      }
+      const d = Math.hypot(tx - c.x, tz - c.z);
+      const pace = c.type === 'glutton' ? 0.7 : c.type === 'kitten' ? 0.85 : c.type === 'zoomer' ? 1.2 : 1;
+      const sp = d > 0.25 ? LASER.speed * pace * clamp(d / 0.9, 0.35, 1) : 0;
+      const a = d > 0.05 ? (d > 1.5 ? pathDir(g, c, tx, tz, dt) : Math.atan2(tz - c.z, tx - c.x)) : c.h;
+      moveCat(g, c, a, sp, CAT.fleeTurn * 1.3, dt);
+      checkDoor(g, c);
+      if (c.st === S.chase && Math.hypot(Lz.x - c.x, Lz.z - c.z) > LASER.radius + 2) setState(c, S.settle, CAT.settle);
+      return;
+    }
+    case S.ride: {
+      const v = g.vacs[c.a];
+      if (!v || v.rider !== c.id) { setState(c, S.idle, 1); c.y = 0; return; }
+      c.x = v.x;
+      c.z = v.z;
+      c.y = 0.12;
+      c.h = v.h;
+      c.sp = VAC.speed;
+      c.vx = Math.cos(v.h) * VAC.speed;
+      c.vz = Math.sin(v.h) * VAC.speed;
+      const near = nearestPerson(g, c, 5);
+      if (near) c.look = near.slot;
+      // special delivery: the vacuum runs over a doormat heading in
+      const k = g.authority ? doorFor(g, v.x, v.z, c.vx, c.vz) : null;
+      if (k) { v.rider = -1; c.y = 0; enterCarrier(g, c, k, 'ride'); }
+      return;
+    }
+    case S.boxsit: {
+      const b = g.boxes[c.a];
+      if (!b || b.cat !== c.id) { setState(c, S.idle, 1); c.y = 0; return; }
+      c.x = b.x;
+      c.z = b.z;
+      c.y = 0.05;
+      c.vx = b.vx;
+      c.vz = b.vz;
+      c.sp = Math.hypot(b.vx, b.vz);
+      const near = nearestPerson(g, c, 5);
+      if (near) { c.look = near.slot; c.h += clamp(angTo(c.h, Math.atan2(near.z - c.z, near.x - c.x)), -3 * dt, 3 * dt); }
+      // pushed onto a doormat heading in: special delivery
+      const k = g.authority ? doorFor(g, b.x, b.z, b.vx, b.vz) : null;
+      if (k) { b.cat = -1; c.y = 0; enterCarrier(g, c, k, 'box'); }
+      return;
+    }
+    case S.nap: {
+      c.sp = 0;
+      c.vx = 0;
+      c.vz = 0;
+      if (g.authority && c.tt <= 0) setState(c, S.idle, 1);
       return;
     }
     case S.wiggle: {
@@ -700,22 +849,11 @@ function updateCat(g, c, dt) {
       if (c.tt <= 0) { c.aim = c.h; startSprint(g, c); }
       return;
     }
-    case S.sprint: {
-      moveCat(g, c, c.h, T.sprint, 3, dt, true);
+    case S.stalk: {
+      const sl = slide(g, c, c.aim + c.wob, T.stalk);
+      moveCat(g, c, sl.a, T.stalk, CAT.fleeTurn, dt);
       checkDoor(g, c);
-      if (c.st === S.sprint && c.tt <= 0) { setState(c, S.trot, 0.6); c.fleeMem = 1; }
-      return;
-    }
-    case S.bolt: case S.trot: case S.stalk: {
-      const sp = c.st === S.bolt ? CLAP.bolt : c.st === S.trot ? CLAP.trot : T.stalk;
-      const sl = slide(g, c, c.aim + c.wob, sp);
-      if (sl.cornered && c.st === S.bolt) c.aim = sl.a;
-      moveCat(g, c, sl.a, sp, CAT.fleeTurn, dt);
-      checkDoor(g, c);
-      if (c.tt <= 0 && (c.st === S.bolt || c.st === S.trot || c.st === S.stalk)) {
-        if (c.st === S.bolt) setState(c, S.trot, CLAP.trotTime);
-        else { setState(c, S.settle, CAT.settle); c.fleeMem = 1; }
-      }
+      if (c.st === S.stalk && c.tt <= 0) { setState(c, S.settle, CAT.settle); c.fleeMem = 1; }
       return;
     }
     case S.crouch: {
@@ -897,6 +1035,33 @@ function updateCat(g, c, dt) {
     }
   }
 
+  if (c.st === S.seek) {
+    // off to a box or a patch of sun
+    const box = c.b === 1 ? g.boxes[c.a] : null;
+    const sun = c.b === 2 ? g.suns[c.a] : null;
+    if ((c.b === 1 && (!box || box.cat >= 0)) || (c.b === 2 && !sun) || (g.authority && c.tt <= 0)) { setState(c, S.idle, 1); return; }
+    const tx = box ? box.x : sun ? sun.x : c.x;
+    const tz = box ? box.z : sun ? sun.z : c.z;
+    const d = Math.hypot(tx - c.x, tz - c.z);
+    if (g.authority && box && d < BOX.radius + 0.55) {
+      // if I fits, I sits
+      box.cat = c.id;
+      hopTo(g, c, { x: box.x, z: box.z }, S.boxsit, 999);
+      c.hop.ty = 0.05;
+      c.a = g.boxes.indexOf(box);
+      return;
+    }
+    if (g.authority && sun && (d < 0.3 || (d < 0.8 && inSun(sun, c.x, c.z)))) {
+      setState(c, S.nap, g.rng.range(SUN.nap[0], SUN.nap[1]));
+      c.sp = 0;
+      emit(g, 'nap', { c: c.id });
+      return;
+    }
+    const a = d > 2 ? pathDir(g, c, tx, tz, dt) : Math.atan2(tz - c.z, tx - c.x);
+    moveCat(g, c, d < 1.2 ? a : avoidCarriers(g, c, a), (TYPES[c.type].calm || 1.2) * 1.1, CAT.calmTurn, dt);
+    return;
+  }
+
   if (c.st === S.walk) {
     const a = avoidCarriers(g, c, c.aim + c.wob);
     const sl = slide(g, c, a, T.calm);
@@ -913,8 +1078,41 @@ function updateCat(g, c, dt) {
     const pi = findPerch(g, c);
     if (pi >= 0 && g.rng.chance(CAT.perchChance * 12)) { hopUp(g, c, pi); return; }
   }
+  // if I fits I sits: an empty box nearby
+  if (g.boxes.length && c.type !== 'boss' && c.gang < 0 && g.rng.chance(BOX.sitChance)) {
+    const bi = nearestBox(g, c, BOX.sitRange);
+    if (bi >= 0) { setState(c, S.seek, 6); c.a = bi; c.b = 1; return; }
+  }
+  // a patch of sun to nap in
+  if (g.suns.length && c.gang < 0 && g.mode !== 'ambient' && g.rng.chance(SUN.chance * (SUN.lazy[c.type] ?? 0.4))) {
+    const si = nearestSun(g, c, SUN.range);
+    if (si >= 0) { setState(c, S.seek, 8); c.a = si; c.b = 2; return; }
+  }
   setState(c, S.walk, g.rng.range(1, 3));
   c.aim = wanderPick(g, c);
+}
+
+function nearestBox(g, c, range) {
+  let best = -1;
+  let bd = range;
+  g.boxes.forEach((b, i) => {
+    if (b.cat >= 0 || g.cats.some((o) => o.st === S.seek && o.b === 1 && o.a === i)) return;
+    const d = Math.hypot(b.x - c.x, b.z - c.z);
+    if (d < bd) { bd = d; best = i; }
+  });
+  return best;
+}
+
+function nearestSun(g, c, range) {
+  let best = -1;
+  let bd = range;
+  g.suns.forEach((p, i) => {
+    // room for two in a patch
+    if (g.cats.filter((o) => o !== c && (o.st === S.nap || o.st === S.seek) && o.b === 2 && o.a === i).length >= 2) return;
+    const d = Math.hypot(p.x - c.x, p.z - c.z);
+    if (d < bd) { bd = d; best = i; }
+  });
+  return best;
 }
 
 function nearestAdult(g, c, range) {
@@ -983,6 +1181,7 @@ function crash(g, c, s) {
   const ox = x <= s.x0 + 0.01 ? -0.3 : x >= s.x1 - 0.01 ? 0.3 : 0;
   const oz = z <= s.z0 + 0.01 ? -0.3 : z >= s.z1 - 0.01 ? 0.3 : 0.3;
   emit(g, 'crash', { c: c.id, x: x + ox, z: z + oz, y: s.perch, s: g.world.solids.indexOf(s) });
+  g.stats.crashes++;
   for (const o of g.cats) {
     if (o === c || OUT.has(o.st)) continue;
     const d = Math.hypot(o.x - x, o.z - z);
@@ -1036,7 +1235,165 @@ function separate(g) {
 }
 
 function free(c) {
-  return !(OUT.has(c.st) || c.st === S.hidden || c.st === S.perch || c.st === S.hop || c.st === S.creep);
+  return !(OUT.has(c.st) || c.st === S.hidden || c.st === S.perch || c.st === S.hop || c.st === S.creep || c.st === S.ride || c.st === S.boxsit);
+}
+
+// ------------------------------------------------------------------ twists
+
+/** The laser pointer: lies on the floor until someone walks over it, then throws a dot ahead of them for a while. */
+function laserTick(g, dt) {
+  const L = g.laser;
+  if (!L) return;
+  if (L.on === 2) {
+    if (g.authority && g.started && !g.over) {
+      L.t -= dt;
+      if (L.t <= 0) { L.on = 0; L.x = L.hx; L.z = L.hz; emit(g, 'laser', { p: -1, ki: 0, x: L.x, z: L.z }); }
+    }
+    return;
+  }
+  if (L.on === 0) {
+    if (!g.authority || g.over) return;
+    for (const p of g.people) {
+      if (!p.active || Math.hypot(p.x - L.hx, p.z - L.hz) > LASER.pick) continue;
+      L.on = 1;
+      L.holder = p.slot;
+      L.t = LASER.time;
+      emit(g, 'laser', { p: p.slot, ki: 1, x: L.hx, z: L.hz });
+      break;
+    }
+    return;
+  }
+  const p = g.people[L.holder];
+  L.t -= dt;
+  if (!p || !p.active || (g.authority && (L.t <= 0 || g.over))) {
+    L.on = 2;
+    L.t = LASER.respawn;
+    L.holder = -1;
+    emit(g, 'laser', { p: -1, ki: 2, x: L.x, z: L.z });
+    return;
+  }
+  const ux = Math.cos(p.h);
+  const uz = Math.sin(p.h);
+  const reach = freeAhead(g.world, p.x, p.z, ux, uz, LASER.reach);
+  L.x = p.x + ux * Math.max(0.6, reach);
+  L.z = p.z + uz * Math.max(0.6, reach);
+}
+
+/** A robot vacuum: straight lines, a turn off whatever it bumps (people too). Cats get out of its way, or ride it. */
+function vacTick(g, v, i, dt) {
+  const dx = Math.cos(v.h);
+  const dz = Math.sin(v.h);
+  const pos = { x: v.x + dx * VAC.speed * dt, z: v.z + dz * VAC.speed * dt };
+  const n = resolve(g.world, pos, VAC.radius);
+  let nx = n.nx;
+  let nz = n.nz;
+  const block = (ox, oz, min) => {
+    const ex = pos.x - ox;
+    const ez = pos.z - oz;
+    const d = Math.hypot(ex, ez);
+    if (d >= min || d < 1e-6) return;
+    pos.x = ox + (ex / d) * min;
+    pos.z = oz + (ez / d) * min;
+    nx += ex / d;
+    nz += ez / d;
+  };
+  for (const p of g.people) if (p.active) block(p.x, p.z, VAC.radius + PERSON.radius);
+  for (const b of g.boxes) block(b.x, b.z, VAC.radius + BOX.radius);
+  g.vacs.forEach((o, j) => { if (j !== i) block(o.x, o.z, VAC.radius * 2); });
+  const nl = Math.hypot(nx, nz);
+  if (nl > 1e-6 && (dx * nx + dz * nz) / nl < -0.1) {
+    // away from what it hit, at one of three angles in turn
+    v.turns++;
+    v.h = Math.atan2(nz, nx) + ((v.turns % 3) - 1) * VAC.turn;
+    emit(g, 'vbump', { c: i, x: pos.x, z: pos.z });
+  }
+  v.x = pos.x;
+  v.z = pos.z;
+  // it runs into a cat: a Loaf (or a sleepy one) climbs aboard, anyone else hops aside
+  for (const c of g.cats) {
+    if (!free(c) || c.id === v.rider) continue;
+    const d = Math.hypot(c.x - v.x, c.z - v.z);
+    const min = VAC.radius + CAT.radius * c.size;
+    if (d >= min) continue;
+    const sleepy = c.st === S.sleep || c.st === S.nap || c.st === S.idle;
+    if (g.authority && v.rider < 0 && sleepy && c.type !== 'boss' && c.type !== 'kitten' && (c.type === 'loaf' || g.rng.chance(VAC.rideChance))) {
+      v.rider = c.id;
+      setState(c, S.ride, 999);
+      c.a = i;
+      emit(g, 'ride', { c: c.id });
+      continue;
+    }
+    const pos2 = { x: v.x + ((c.x - v.x) / (d || 1)) * min, z: v.z + ((c.z - v.z) / (d || 1)) * min };
+    resolve(g.world, pos2, CAT.radius * c.size);
+    if (c.st !== S.sleep) { c.x = pos2.x; c.z = pos2.z; }
+  }
+}
+
+/** The doorbell: a ding, then every cat in the room scatters from the front door. */
+function bellTick(g) {
+  const B = g.bell;
+  if (!B || !g.started || g.over) return;
+  if (!B.warned && g.elapsed >= B.next - BELL.warn) {
+    B.warned = true;
+    emit(g, 'ding', { x: B.x, z: B.z });
+  }
+  if (g.elapsed >= B.next) {
+    B.warned = false;
+    B.next += B.every;
+    emit(g, 'bell', { x: B.x, z: B.z });
+    for (const c of g.cats) scatter(g, c, B.x, B.z, BELL.radius, null);
+  }
+}
+
+/** People shove boxes about; a cat sitting in one goes with it. Boxes keep cats out. */
+function boxTick(g, dt) {
+  for (const b of g.boxes) {
+    const ox = b.x;
+    const oz = b.z;
+    for (const p of g.people) {
+      if (!p.active) continue;
+      const dx = b.x - p.x;
+      const dz = b.z - p.z;
+      const min = BOX.radius + PERSON.radius;
+      const d = Math.hypot(dx, dz);
+      if (d >= min || d < 1e-6) continue;
+      const pos = { x: p.x + (dx / d) * min, z: p.z + (dz / d) * min };
+      resolve(g.world, pos, BOX.radius);
+      for (const o of g.boxes) {
+        if (o === b) continue;
+        const ex = pos.x - o.x;
+        const ez = pos.z - o.z;
+        const e = Math.hypot(ex, ez);
+        if (e < BOX.radius * 2 && e > 1e-6) { pos.x = o.x + (ex / e) * BOX.radius * 2; pos.z = o.z + (ez / e) * BOX.radius * 2; }
+      }
+      b.x = pos.x;
+      b.z = pos.z;
+      // stuck against a wall: the box stops the person instead
+      const gap = Math.hypot(b.x - p.x, b.z - p.z);
+      if (gap < min - 0.01 && !p.external) {
+        const pp = { x: b.x - (dx / d) * min, z: b.z - (dz / d) * min };
+        resolve(g.world, pp, PERSON.radius);
+        p.x = pp.x;
+        p.z = pp.z;
+      }
+    }
+    b.vx = (b.x - ox) / dt;
+    b.vz = (b.z - oz) / dt;
+    const sit = g.cats[b.cat];
+    if (sit && sit.st === S.boxsit) { sit.x = b.x; sit.z = b.z; }
+    for (const c of g.cats) {
+      if (!free(c)) continue;
+      const dx = c.x - b.x;
+      const dz = c.z - b.z;
+      const min = BOX.radius + CAT.radius * c.size;
+      const d = Math.hypot(dx, dz);
+      if (d >= min || d < 1e-6) continue;
+      const pos = { x: b.x + (dx / d) * min, z: b.z + (dz / d) * min };
+      resolve(g.world, pos, CAT.radius * c.size);
+      c.x = pos.x;
+      c.z = pos.z;
+    }
+  }
 }
 
 // ------------------------------------------------------------------ modes
@@ -1074,7 +1431,6 @@ function catladyTick(g, dt) {
 }
 
 function modeTick(g, dt) {
-  for (const k of g.carriers) k.shutT = Math.max(0, k.shutT - dt);
   if (g.over) return;
   if (g.mode === 'catlady' && g.authority) catladyTick(g, dt);
   if (g.started && g.clock != null) {
@@ -1108,14 +1464,17 @@ function modeTick(g, dt) {
 function finish(g, allIn) {
   g.over = true;
   if (g.clock != null) g.clock = Math.max(0, g.clock);
-  g.result = { allIn, time: g.elapsed, boxed: g.boxed, counts: g.carriers.map((k) => k.count) };
+  g.result = { allIn, time: g.elapsed, boxed: g.boxed, counts: g.carriers.map((k) => k.count), stats: { ...g.stats } };
   emit(g, allIn ? 'allin' : 'timeup', {});
 }
 
-/** One fixed step: people, cats, carriers, the clock. */
+/** One fixed step: people, the room's twists, cats, carriers, the clock. */
 export function step(g, dt = STEP) {
   g.time += dt;
   for (const p of g.people) movePerson(g, p, dt);
+  laserTick(g, dt);
+  g.vacs.forEach((v, i) => vacTick(g, v, i, dt));
+  bellTick(g);
   for (const c of g.cats) {
     updateCat(g, c, dt);
     if (!Number.isFinite(c.x) || !Number.isFinite(c.z)) {
@@ -1125,9 +1484,10 @@ export function step(g, dt = STEP) {
     }
     if (!Number.isFinite(c.h)) c.h = 0;
     else if (c.h > Math.PI || c.h < -Math.PI) c.h = angTo(0, c.h);
-    if (c.st !== S.hop && c.st !== S.perch && c.st !== S.bump) c.y = 0;
+    if (c.st !== S.hop && c.st !== S.perch && c.st !== S.bump && c.st !== S.ride && c.st !== S.boxsit) c.y = 0;
   }
   separate(g);
+  if (g.boxes.length) boxTick(g, dt);
   modeTick(g, dt);
 }
 
@@ -1136,3 +1496,4 @@ export function loose(g) {
 }
 
 export const isOut = (c) => OUT.has(c.st);
+export { scatter };

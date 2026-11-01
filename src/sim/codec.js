@@ -12,7 +12,9 @@ const MAX_EVENTS = 8;
 const HOPS = new Set([S.hop, S.enter, S.bump, S.runhide]);
 
 // event kinds on the wire
-export const EVENTS = ['in', 'bump', 'crash', 'hide', 'emerge', 'zoom', 'slip', 'hop', 'surprise', 'treats', 'clap', 'swat', 'scared', 'wiggle'];
+export const EVENTS = ['in', 'bump', 'crash', 'hide', 'emerge', 'zoom', 'slip', 'hop', 'surprise', 'treats', 'clap', 'swat', 'scared', 'wiggle',
+  'knock', 'combo', 'trick', 'laser', 'ding', 'bell', 'ride', 'boxsit', 'nap'];
+const MAX_VACS = 4;
 const EV_INDEX = Object.fromEntries(EVENTS.map((k, i) => [k, i]));
 
 /** The round's state, from the host's simulation. `bots`: the bot people (by seat order). */
@@ -39,6 +41,8 @@ export function encode(g, roundId, bots = []) {
     e,
     o: g.over ? (g.result?.allIn ? 2 : 1) : 0,
     k: q(g.clock ?? 0),
+    ...(g.laser ? { l: [g.laser.on, g.laser.holder | 0, q(g.laser.t), q(g.laser.x), q(g.laser.z)] } : {}),
+    ...(g.vacs?.length ? { v: g.vacs.slice(0, MAX_VACS).map((v) => [q(v.x), q(v.z), qa(v.h), v.rider | 0]) } : {}),
   };
 }
 
@@ -83,6 +87,22 @@ export function decode(raw, { cats, carriers, w, d }) {
   }
   out.over = int(raw.o, 0, 2) ? raw.o : 0;
   out.clock = int(raw.k, -100000, 1000000) ? raw.k / 100 : 0;
+  if (raw.l != null) {
+    if (!arr(raw.l, 5) || raw.l.length !== 5) return null;
+    const [on, holder, t, x, z] = raw.l;
+    if (!int(on, 0, 2) || !int(holder, -1, MAX_PEOPLE) || !int(t, -10000, 100000) || !int(x, -400, lim) || !int(z, -400, lim)) return null;
+    out.laser = { on, holder, t: t / 100, x: x / 100, z: z / 100 };
+  }
+  if (raw.v != null) {
+    if (!arr(raw.v, MAX_VACS)) return null;
+    out.vacs = [];
+    for (const e of raw.v) {
+      if (!arr(e, 4) || e.length !== 4) return null;
+      const [x, z, h, rider] = e;
+      if (!int(x, -400, lim) || !int(z, -400, lim) || !int(h, -2000, 2000) || !int(rider, -1, MAX_CATS)) return null;
+      out.vacs.push({ x: x / 100, z: z / 100, h: h / 100, rider });
+    }
+  }
   return out;
 }
 
@@ -109,6 +129,8 @@ export function applyCats(g, snap) {
     if (c.st !== s.st || !HOPS.has(s.st)) c.hop = null;
     c.st = s.st;
   });
+  if (snap.laser && g.laser) Object.assign(g.laser, snap.laser);
+  if (snap.vacs) snap.vacs.forEach((v, i) => { if (g.vacs[i]) Object.assign(g.vacs[i], v); });
   snap.counts.forEach((n, i) => { if (g.carriers[i]) g.carriers[i].count = n; });
   snap.closed.forEach((v, i) => { if (g.carriers[i]) g.carriers[i].closed = v; });
   g.boxed = snap.counts.reduce((a, b) => a + b, 0);

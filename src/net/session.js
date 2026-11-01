@@ -37,7 +37,7 @@ export function createSession(opts) {
   const owners = together ? [null] : setup.room.carriers.map((_, i) => data.seats[i] ?? null);
   const g = createGame({
     room: setup.room, mode: data.mode, cats: setup.cats, seed: data.seed * 7919 + data.round,
-    clock: together ? ROUND.together : ROUND.versus, authority: !!opts.host, owners,
+    clock: together ? ROUND.together : ROUND.versus, authority: !!opts.host, owners, twists: setup.twists,
   });
   if (together) g.claims = new Map();
   g.started = true;

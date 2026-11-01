@@ -7,7 +7,7 @@ import { STEP, ROUND, CATLADY } from './tuning.js';
 
 export function runLevel(n, { skill = 1, style = 'shepherd', seed = 1, limit = null } = {}) {
   const setup = levelSetup(n);
-  const g = createGame({ room: setup.room, mode: 'level', cats: setup.cats, seed, clock: limit ?? setup.level.closes });
+  const g = createGame({ room: setup.room, mode: 'level', cats: setup.cats, seed, clock: limit ?? setup.level.closes, twists: setup.level.twists });
   const p = addPerson(g, { id: 'me' });
   const b = createBrain({ skill, style, seed: seed * 7 + 3 });
   g.started = true;
@@ -23,7 +23,7 @@ export function runLevel(n, { skill = 1, style = 'shepherd', seed = 1, limit = n
 
 export function runRound({ seed = 1, round = 1, seats = 4, together = false, skills = null, styles = null, limit = null } = {}) {
   const setup = roundSetup({ seed, round, seats, together });
-  const g = createGame({ room: setup.room, mode: together ? 'together' : 'versus', cats: setup.cats, seed, clock: limit ?? (together ? ROUND.together : ROUND.versus), owners: setup.room.carriers.map((_, i) => `s${i}`) });
+  const g = createGame({ room: setup.room, mode: together ? 'together' : 'versus', cats: setup.cats, seed, clock: limit ?? (together ? ROUND.together : ROUND.versus), owners: setup.room.carriers.map((_, i) => `s${i}`), twists: setup.twists });
   if (together) g.claims = new Map();
   const people = [];
   for (let i = 0; i < seats; i++) {

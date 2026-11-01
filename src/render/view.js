@@ -7,8 +7,11 @@ import { createCats } from './cats.js';
 import { makePerson } from './people.js';
 import { makeCarrier } from './carriers.js';
 import { createFx } from './fx.js';
+import { createGuides } from './guides.js';
+import { createTwists } from './twists.js';
 import { COAT_LOOK } from './catshader.js';
 import { TREATS, CLAP, S } from '../sim/tuning.js';
+import { TRICKS } from '../sim/game.js';
 import * as sfx from '../audio.js';
 
 const PITCH = { kitten: 1.6, boss: 0.62, glutton: 0.8, scaredy: 1.3, zoomer: 1.15, loaf: 0.9, moggy: 1 };
@@ -48,6 +51,8 @@ export function createView(stage, { onStamp = null } = {}) {
   scene.add(root);
   const cats = createCats(scene);
   const fx = createFx(scene);
+  const guides = createGuides(scene);
+  const twists = createTwists(scene);
   const ring = cooldownRing();
   ring.visible = false;
   scene.add(ring);
@@ -65,6 +70,8 @@ export function createView(stage, { onStamp = null } = {}) {
     v.persons = [];
     cats.reset();
     fx.clear();
+    guides.clear();
+    twists.clear();
   }
 
   /**
@@ -91,6 +98,7 @@ export function createView(stage, { onStamp = null } = {}) {
       v.carriers.push(c);
     });
     v.setPeople(opts.people ?? [], opts.me ?? -1);
+    twists.show(g);
     v.lastSeq = g.evSeq;
     v.catSt = g.cats.map((c) => c.st);
     hasPrev = false;
@@ -150,8 +158,61 @@ export function createView(stage, { onStamp = null } = {}) {
         sfx.clank();
         setTimeout(() => sfx.mrrp(pitch), 90);
         stage.shake(0.18);
+        if (c) fx.tufts(k?.doorX ?? c.x, 0.35, k?.doorZ ?? c.z, COAT_LOOK[c.coat]?.base ?? '#e8a060', 4);
         break;
       }
+      case 'combo': {
+        const k = g.carriers[e.ki];
+        if (k) {
+          onStamp?.('combo', k.x, 1.5, k.z, { n: e.c, carrier: e.ki });
+          fx.confetti(k.matX, k.matZ, ['#f6b941', '#e5493a', '#fff3df', '#3f7fcb'], 0.6, 10 + e.c * 6);
+          fx.wave(k.matX, k.matZ, 1.2 + e.c * 0.4, 0.5, '#f6b941');
+        }
+        break;
+      }
+      case 'trick': {
+        const k = g.carriers.find((kk) => Math.hypot(kk.matX - e.x, kk.matZ - e.z) < 0.5) ?? g.carriers[0];
+        if (k) onStamp?.('trick', k.x, 2.1, k.z, { trick: TRICKS[e.ki] ?? '' });
+        break;
+      }
+      case 'knock': {
+        fx.stars(e.x, e.z, 0.45, 5);
+        if (c) fx.tufts(e.x, 0.4, e.z, COAT_LOOK[c.coat]?.base ?? '#e8a060', 5);
+        fx.wave(e.x, e.z, 0.7, 0.25, '#fff3df');
+        sfx.knock();
+        setTimeout(() => sfx.mrt(pitch * 1.15), 40);
+        stage.shake(0.12);
+        onStamp?.('knock', e.x, 0.9, e.z, {});
+        break;
+      }
+      case 'bounce': {
+        fx.dust(e.x, e.z, 3, v.dustColor);
+        sfx.hop();
+        break;
+      }
+      case 'laser': {
+        const who = e.p ?? e.c;
+        if (e.ki === 1) { sfx.chime(); fx.sparkle?.(e.x, 0.3, e.z); onStamp?.('laser', e.x, 1, e.z, { who }); }
+        else if (e.ki === 0) sfx.tap();
+        else sfx.dull();
+        break;
+      }
+      case 'ding': {
+        onStamp?.('ding', e.x, 1.6, e.z, {});
+        sfx.chime();
+        break;
+      }
+      case 'bell': {
+        fx.wave(e.x, e.z, 6, 0.9, '#ff6a55');
+        stage.shake(0.2);
+        onStamp?.('bell', e.x, 1.6, e.z, {});
+        setTimeout(() => sfx.hiss(), 160);
+        break;
+      }
+      case 'ride': { sfx.mrrp(pitch * 0.9); if (c) onStamp?.('ride', c.x, 1.0, c.z, {}); break; }
+      case 'boxsit': { sfx.mrrp(pitch * 1.1); break; }
+      case 'nap': { sfx.purr(); break; }
+      case 'vbump': { sfx.knock(); break; }
       case 'bump': {
         v.carriers[e.ki]?.bump();
         sfx.knock();
@@ -256,6 +317,8 @@ export function createView(stage, { onStamp = null } = {}) {
     });
     v.drawn = proxies;
     v.room?.update(t, dt);
+    twists.update(dt, t, proxies, opts.reducedMotion);
+    guides.update(g, { me: opts.guides === false ? null : me, clapReady: !!me && me.clapCd <= 0, t, reduced: opts.reducedMotion });
     fx.update(dt, t);
     fx.setScale((Math.min(stage.w, stage.h) * stage.dpr) / stage.span, stage.dist ?? 14);
     // dust behind anything running fast

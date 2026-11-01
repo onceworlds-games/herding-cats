@@ -29,7 +29,8 @@ import { createGame, addPerson, step, treats, clap, loose } from './sim/game.js'
 import { createBrain, think } from './sim/brain.js';
 import { levelSetup, LEVELS, INTROS, catladySetup } from './sim/levels.js';
 import { ROOMS } from './sim/rooms.js';
-import { STEP, S, CATLADY, ROUND, SEATS } from './sim/tuning.js';
+import { STEP, S, CATLADY, ROUND, SEATS, COMBO } from './sim/tuning.js';
+import { soonIn } from './sim/motion.js';
 import { createSession, makeRoundData, advance as advanceSession, stepAlpha } from './net/session.js';
 import * as sfx from './audio.js';
 import * as save from './save.js';
@@ -276,14 +277,72 @@ async function boot() {
   const stampLayer = el('div');
   stampLayer.style.cssText = 'position:fixed;inset:0;pointer-events:none';
   document.body.appendChild(stampLayer);
-  function onStamp(kind, x, y, z) {
+  const TRICK_WORDS = { bank: 'Bank shot', chain: 'Chain', laser: 'Laser', ride: 'Special delivery', box: 'Special delivery' };
+  function onStamp(kind, x, y, z, info = {}) {
     const p = stage.toScreen(x, y, z);
-    if (kind === 'in') {
-      stampAt(stampLayer, 'IN', p.x, p.y - 30, { reducedMotion: reduced() });
-      sfx.stamp();
-    } else if (kind === 'surprise') {
-      stampAt(stampLayer, '?!', p.x, p.y - 20, { gold: true, life: 1400, reducedMotion: reduced() });
+    // keep stamps on screen when what they're about is near an edge
+    const mx = kind === 'combo' ? 190 : 110;
+    p.x = Math.max(mx, Math.min(innerWidth - mx, p.x));
+    p.y = Math.max(kind === 'combo' ? 150 : 90, Math.min(innerHeight - 80, p.y));
+    const rm = reduced();
+    switch (kind) {
+      case 'in':
+        stampAt(stampLayer, 'IN', p.x, p.y - 30, { reducedMotion: rm });
+        sfx.stamp();
+        juiceHit('in', x, z);
+        break;
+      case 'surprise':
+        stampAt(stampLayer, '?!', p.x, p.y - 20, { gold: true, life: 1400, reducedMotion: rm });
+        break;
+      case 'combo': {
+        const n = info.n ?? 2;
+        const word = n >= 4 ? (n > 4 ? `Cat Train ×${n}` : 'Cat Train') : COMBO.names[n];
+        stampAt(stampLayer, `${word}!`, p.x, p.y - 80, { gold: true, cls: 'big', life: 1400, reducedMotion: rm });
+        sfx.star(Math.min(2, n - 2));
+        juiceHit('combo', x, z, n);
+        break;
+      }
+      case 'trick':
+        if (TRICK_WORDS[info.trick]) stampAt(stampLayer, TRICK_WORDS[info.trick], p.x, p.y - 40, { gold: true, cls: 'small', life: 1200, reducedMotion: rm });
+        break;
+      case 'knock':
+        stampAt(stampLayer, 'Bonk', p.x, p.y - 20, { cls: 'small', life: 600, reducedMotion: rm });
+        juiceHit('knock', x, z);
+        break;
+      case 'ding':
+        stampAt(stampLayer, 'Ding dong', p.x, p.y, { gold: true, cls: 'small', life: 1500, reducedMotion: rm });
+        break;
+      case 'ride':
+        stampAt(stampLayer, 'All aboard', p.x, p.y, { cls: 'small', life: 900, reducedMotion: rm });
+        break;
+      default: break;
     }
+  }
+
+  // ------------------------------------------------------------------ juice: hit-stop, slow motion, the camera leaning in
+  // (time only bends in solo play; a match's clock is shared)
+  const juice = { stop: 0, slow: 0 };
+  function juiceHit(kind, x, z, n = 1) {
+    if (reduced()) return;
+    const solo = app.screen === 'solo';
+    if (kind === 'in') {
+      if (solo) juice.stop = Math.max(juice.stop, 0.055);
+      stage.punch(0.05, { x, z });
+    } else if (kind === 'combo') {
+      if (solo) juice.stop = Math.max(juice.stop, 0.07 + 0.025 * n);
+      stage.punch(0.08 + 0.03 * n, { x, z });
+      stage.flashScreen(0.05 + 0.02 * n);
+      if (solo && n >= 3) juice.slow = Math.max(juice.slow, 0.5);
+    } else if (kind === 'knock') {
+      if (solo) juice.stop = Math.max(juice.stop, 0.045);
+    }
+  }
+  /** Real seconds → seconds the run moves this frame. */
+  function bend(dt) {
+    if (app.screen !== 'solo') { juice.stop = 0; juice.slow = 0; return dt; }
+    if (juice.stop > 0) { juice.stop -= dt; return dt * 0.03; }
+    if (juice.slow > 0) { juice.slow -= dt; return dt * 0.3; }
+    return dt;
   }
 
   // ------------------------------------------------------------------ avatars
@@ -583,7 +642,7 @@ async function boot() {
   // close enough to read a cat's face, wide enough to plan the next herd: about nine room units across the short side
   function followSpan() {
     if (TAKE_SPAN) return TAKE_SPAN;
-    return innerWidth >= innerHeight ? 9.5 : 7.5;
+    return innerWidth >= innerHeight ? 8 : 6.6;
   }
 
   function startLevel(n, { auto = false } = {}) {
@@ -733,6 +792,12 @@ async function boot() {
         if (g.over) break;
       }
       alpha = r.acc / STEP;
+      // the last cat on its way in: time slows and the camera leans in
+      if (r.kind === 'level' && !g.over && !r.lastSlow && !reduced() && !g.cats.some((c) => c.surprise)) {
+        const left = loose(g);
+        const k = left.length === 1 && g.boxed > 0 ? soonIn(g, left[0], 0.45) : null;
+        if (k) { r.lastSlow = true; juice.slow = 1.0; stage.punch(0.2, { x: k.x, z: k.z }); }
+      }
     }
     r.alpha = alpha;
     // events: sounds, stamps, the counter
@@ -1353,6 +1418,7 @@ async function boot() {
     let me = null;
     let offsets = null;
     let away = null;
+    let vdt = dt;
     switch (app.screen) {
       case 'title': case 'book':
         if (app.scene === 'attract') { tickAttract(dt); alpha = app.attract.acc / STEP; }
@@ -1363,7 +1429,8 @@ async function boot() {
         alpha = app.waiting ? app.waiting.acc / STEP : 1;
         break;
       case 'solo':
-        tickSolo(dt);
+        vdt = bend(dt);
+        tickSolo(vdt);
         alpha = app.run?.alpha ?? 1;
         me = app.run?.me ?? null;
         break;
@@ -1383,7 +1450,7 @@ async function boot() {
       }
       default: break;
     }
-    if (view.g) view.update(dt, app.t, { alpha, me, offsets, away, reducedMotion: reduced() });
+    if (view.g) view.update(vdt, app.t, { alpha, me, offsets, away, reducedMotion: reduced(), guides: app.screen === 'solo' || app.screen === 'match' });
     stage.update(dt);
     stage.render();
     tagsDone();

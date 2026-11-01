@@ -145,6 +145,8 @@ body { font-family: var(--word); font-weight: 700; -webkit-user-select: none; us
 .float.big { font: 900 26px/1 var(--word); }
 .stamp { position: absolute; transform: translate(-50%, -50%) rotate(-8deg); font: 800 54px/1 var(--num); color: var(--red); pointer-events: none; padding: 2px 10px 4px; border: 5px solid var(--red); border-radius: 8px; background: var(--cream); }
 .stamp.gold { color: var(--ink); border-color: var(--ink); background: var(--gold); }
+.stamp.big { font-size: clamp(54px, 9vw, 92px); border-width: 6px; white-space: nowrap; z-index: 2; }
+.stamp.small { font: 900 clamp(20px, 3vw, 30px)/1 var(--word); border-width: 3px; padding: 2px 10px 5px; white-space: nowrap; }
 .headline { position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%); text-align: center; white-space: nowrap; }
 .headline .a { font: 800 30px/1 var(--num); color: var(--gold); -webkit-text-stroke: 0.16em var(--ink); paint-order: stroke fill; }
 .headline .b { font: 900 clamp(40px, 7vw, 80px)/1 var(--word); }

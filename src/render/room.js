@@ -1303,3 +1303,12 @@ export function buildRoom(room, world, { quality = 'high', onLand = null } = {})
     },
   };
 }
+
+/** One kit piece on its own (a loose cardboard box, say), floor at 0, footprint centred. Returns { group, dispose }. */
+export function buildPiece(kind, w, d, o = {}) {
+  const own = [];
+  const P = new Piece({ fabric: FABRIC.teal, wood: PAL.oak, accent: FABRIC.mustard, accent2: FABRIC.blush, ...o }, own);
+  BUILD[kind]?.(P, w, d, { k: kind }, P.o);
+  P.group.traverse((m) => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+  return { group: P.group, dispose: () => { for (const x of own) x.dispose?.(); } };
+}

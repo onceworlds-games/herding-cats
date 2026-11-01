@@ -144,7 +144,7 @@ export function createCats(scene, { quality = 'high' } = {}) {
       u.uFx.value.set(f ? f.flash : 0, f ? f.glow : 0, t, 0);
       // contact shadow
       const y = c.y || 0;
-      e.blob.visible = c.st !== S.hidden;
+      e.blob.visible = c.st !== S.hidden && c.st !== S.boxsit && c.st !== S.ride;
       const sh = 0.82 * scale * (1 + Math.min(0.6, y * 0.6));
       e.blob.scale.set(sh * 1.1, 1, sh * 0.62);
       e.blob.rotation.y = -e.anim.st.h;
@@ -155,9 +155,9 @@ export function createCats(scene, { quality = 'high' } = {}) {
       let symName = null;
       let fill = '#fff3df';
       const dMe = me ? Math.hypot(me.x - x, me.z - z) : 0;
-      const sleeping = c.st === S.sleep || (c.type === 'loaf' && (c.st === S.idle || c.st === S.settle));
+      const sleeping = c.st === S.sleep || c.st === S.nap || (c.type === 'loaf' && (c.st === S.idle || c.st === S.settle));
       if (c.type === 'boss') { symName = 'crown'; fill = '#f6b941'; }
-      else if (c.type === 'loaf' && sleeping && dMe < 7) symName = 'z';
+      else if ((c.type === 'loaf' || c.st === S.nap) && sleeping && dMe < 7) symName = 'z';
       else if (c.type === 'zoomer' && (c.st === S.wiggle || c.st === S.sprint)) { symName = 'bolt'; fill = c.st === S.wiggle && Math.sin(t * 30) > 0 ? '#f6b941' : '#fff3df'; }
       else if (c.type === 'scaredy' && (c.st === S.hidden || c.st === S.runhide)) { symName = '!'; fill = '#f6b941'; }
       else if (c.type === 'glutton' && c.st === S.lured) { symName = 'fish'; fill = '#f6b941'; }

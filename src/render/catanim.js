@@ -11,8 +11,8 @@ const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t 
 const approach = (cur, target, rate, dt) => cur + (target - cur) * (1 - Math.exp(-rate * dt));
 const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
-const FAST = new Set([S.flee, S.bolt, S.sprint, S.runhide]);
-const HAPPY = new Set([S.lured, S.follow, S.march]);
+const FAST = new Set([S.flee, S.bolt, S.sprint, S.runhide, S.chase]);
+const HAPPY = new Set([S.lured, S.follow, S.march, S.seek]);
 const POSES = ['sit', 'loaf', 'sleep', 'crouch', 'arch', 'wiggle', 'leap', 'scramble'];
 
 // gait tables: leg order FL, FR, HL, HR
@@ -81,7 +81,15 @@ export function createAnimator(build, bones, seed = Math.random()) {
         if (loafy) { T.loaf = 1; A.sleepy = 0.55; A.tailWrap = 1; }
         else if (since > 1.1) { T.sit = 1; A.tailWrap = 1; A.sway = 0.08; }
         break;
-      case S.walk: case S.arrive: A.tailUp = 0.75; A.tailCurl = 0.45; A.earFwd = 0.5; break;
+      case S.walk: case S.arrive: case S.seek: A.tailUp = 0.75; A.tailCurl = 0.45; A.earFwd = 0.5; break;
+      case S.chase:
+        // hunting the dot: ears up, eyes wide, a butt wiggle when it's right there
+        A.earFwd = 1; A.pupil = 1; A.tailUp = 0.25; A.tailCurl = 0.2; A.sway = 0.3; A.swayF = 4; A.twitch = 1;
+        if ((c.sp || 0) < 0.8) { T.wiggle = 1; A.tailUp = -0.1; } else T.crouch = 0.25;
+        break;
+      case S.ride: T.loaf = 1; A.sleepy = 0.45; A.tailWrap = 1; A.earFwd = 0.6; A.sway = 0.05; break;
+      case S.boxsit: T.sit = 1; A.earFwd = 0.9; A.tailWrap = 1; A.pupil = 0.75; A.sway = 0.05; break;
+      case S.nap: T.sleep = 1; A.sleepy = 1; A.tailWrap = 1; A.earFwd = 0; A.sway = 0.02; break;
       case S.alert:
         A.tailUp = 0.9; A.tailCurl = 0.1; A.sway = 0; A.tailPuff = 1.25; A.earFlat = 0.35; A.earFwd = 1; A.pupil = 1; T.crouch = 0.3;
         break;
@@ -128,6 +136,8 @@ export function createAnimator(build, bones, seed = Math.random()) {
     if (c.st !== st.last) {
       if (c.st === S.alert || c.st === S.crouch) { st.squash = 1; st.startle = 1; }
       if (c.st === S.bump) { st.tumble = 1; st.tumbleDir = Math.random() < 0.5 ? -1 : 1; }
+      // knocked on by another cat: a roll as it goes
+      if (c.st === S.bolt && (c.chain || 0) > 0) { st.tumble = 1; st.tumbleDir = Math.random() < 0.5 ? -1 : 1; st.squash = 1; }
       if (st.last === S.hop) st.squash = 0.8;
       st.last = c.st;
       st.since = 0;
@@ -141,7 +151,7 @@ export function createAnimator(build, bones, seed = Math.random()) {
     const turn = Math.min(1, dt * (fast ? 16 : 9));
     st.h = wrapA(st.h + dh * turn);
     st.hv = approach(st.hv, dt > 0 ? (dh * turn) / dt : 0, 10, dt);
-    const moving = !(c.st === S.hop || c.st === S.enter || c.st === S.perch || c.st === S.hidden || c.st === S.bump);
+    const moving = !(c.st === S.hop || c.st === S.enter || c.st === S.perch || c.st === S.hidden || c.st === S.bump || c.st === S.ride || c.st === S.boxsit || c.st === S.scoot);
     const vM = (moving ? Math.max(0, c.sp || 0) : 0) / scale;
     st.spd = approach(st.spd, vM, 12, dt);
 

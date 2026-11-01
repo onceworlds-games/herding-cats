@@ -104,12 +104,13 @@ export function createStage(canvas, { poster = false } = {}) {
     w: 1, h: 1, dpr: 1, quality: 'medium',
     target: new THREE.Vector3(), span: 14, // world units across the short side, at the target
     goalTarget: new THREE.Vector3(), goalSpan: 14,
-    trauma: 0, shakeT: 0, reducedMotion: false, punchK: 0, flash: 0, time: 0,
+    trauma: 0, shakeT: 0, reducedMotion: false, punchK: 0, punchAt: new THREE.Vector3(), flash: 0, time: 0,
     bounds: { w: 16, d: 14 },
     composer: null, finish: null, bloom: null,
   };
 
   const tmp = new THREE.Vector3();
+  const look = new THREE.Vector3();
 
   function buildComposer() {
     if (st.composer) { st.composer.dispose(); st.composer = null; }
@@ -233,9 +234,11 @@ export function createStage(canvas, { poster = false } = {}) {
     st.trauma = Math.min(1, st.trauma + amount);
   };
   /** A quick lean in (a combo, the last cat). */
-  st.punch = (amount = 0.1) => {
+  st.punch = (amount = 0.1, at = null) => {
     if (st.reducedMotion) return;
     st.punchK = Math.min(0.3, st.punchK + amount);
+    if (at) st.punchAt.set(at.x, 0, at.z);
+    else st.punchAt.copy(st.target);
   };
   st.flashScreen = (a = 0.25) => { if (!st.reducedMotion) st.flash = Math.max(st.flash, a); };
 
@@ -259,9 +262,11 @@ export function createStage(canvas, { poster = false } = {}) {
     const tanV = Math.tan((FOV * Math.PI) / 360);
     const dist = aspect >= 1 ? half / tanV : half / (tanV * aspect);
     st.dist = dist;
-    tmp.copy(dir).multiplyScalar(dist).add(st.target);
+    // a punch leans in toward what it's about
+    look.copy(st.target).lerp(st.punchAt, Math.min(1, st.punchK * 2.2));
+    tmp.copy(dir).multiplyScalar(dist).add(look);
     camera.position.copy(tmp);
-    camera.lookAt(st.target);
+    camera.lookAt(look);
     if (st.trauma > 0) {
       const s = st.trauma * st.trauma * 0.025;
       const t = st.shakeT * 31;

@@ -117,8 +117,8 @@ export function bookCards(progress, { onPick }) {
 }
 
 /** A stamp that thumps onto the screen at (x, y) and goes. */
-export function stampAt(layer, text, x, y, { gold = false, life = 900, reducedMotion = false } = {}) {
-  const s = el('div', `stamp${gold ? ' gold' : ''}`, esc(text));
+export function stampAt(layer, text, x, y, { gold = false, life = 900, reducedMotion = false, cls = '' } = {}) {
+  const s = el('div', `stamp${gold ? ' gold' : ''}${cls ? ` ${cls}` : ''}`, esc(text));
   s.style.left = `${x}px`;
   s.style.top = `${y}px`;
   layer.appendChild(s);

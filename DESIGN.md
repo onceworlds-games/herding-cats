@@ -380,8 +380,10 @@ gloss), ≥ 56 px tall on phones, key caps shown on desktop.
 **The world:** miniature cutaway apartments, as if a set designer built tiny lived-in rooms on a tabletop. Each room is a slab
 with a dark cut section, two back walls (wallpaper, wainscoting, skirting, windows with a view and curtains, paintings) and
 the front walls cut down to a low stub, floating over a warm dark backdrop. Furniture is CC0 (Quaternius' House Interior,
-Kenney's Furniture Kit) recoloured into one palette; floors are ambientCG wood, tile and carpet. The things that make it a
-cat household are made in code: bookcases full of books, rugs with fringes, braided rag rugs in the emptiest floor, bowls on
+Kenney's Furniture Kit) recoloured into one palette; floors are ambientCG wood and tile, and carpets woven in each room's
+colours over the ambientCG pile (a sage trellis with gold rosettes under the libraries' burgundy walls, rose sprigs in the
+parlour, little cream flowers on blue in the bedroom). The things that make it a cat household are made in code: bookcases
+full of books, rugs with fringes and a medallion, oval braided rag rugs in the emptiest floor, bowls on
 a mat, pet beds, scratching posts, cushions, feather wands, yarn balls and toy mice that roll away when a cat or a person
 runs through them, slippers by the door. Late sun pours through the back windows: bright window patches on the floor, light
 shafts with drifting dust, soft shadows, contact shadows baked under every footprint.
@@ -462,24 +464,28 @@ staccato stabs. Menus play bass, ride and brushes, quieter.
 ## Store art and trailer
 
 Posters (deterministic, `?poster=<name>`, real renderer, no HUD):
-- **cover** (1280×720): the studio flat; a person walking a train of four cats into the red carrier (3/9 on its sign), a cat
-  up on the sofa, a Loaf asleep on the rug, a Zoomer sprinting off. "Herding Cats" once, big, top right.
-- **action** (1280×720): a close-up of a treats shake: the gold ring going out, five cats turning and trotting to the bag.
-- **win** (1280×720): the carrier with 6/6, the last cat stepping in, confetti, "All in!" and three stars.
+- **cover** (1280×720): the studio flat in late sun; a person walking a train of four cats toward the red carrier (3/9 on
+  its sign), a white cat up on the coffee table, a Zoomer sprinting off, toys and a braided rug about. "Herding Cats" once,
+  big, top right.
+- **action** (1280×720): close on a treats shake: the gold ring of reach going out, a Glutton, a ginger and a kitten
+  turning and trotting to the pouch.
+- **win** (1280×720): the carrier with 6/6, the last cat squeezing in, confetti; "All in!" and the three star sockets lit
+  (carrier, clock, a Cat Train).
 - **multi** (1280×720, thumb-4): Versus in the loft, four herders and four carriers in their colours and symbols with their
   counts, cats everywhere.
-- **icon** (512×512): the red carrier and a ginger cat on its doormat. No text.
-- **badge-<id>** (256×256): a bold symbol on a palette disc (a paw, a carrier, a clock, a crown, a bolt, a heart, a star, a
-  yarn ball, a rosette, a cat's head).
+- **icon** (512×512): the red carrier and a ginger cat on its doormat in a patch of sun. No text.
+- **badge-<id>** (256×256): a bold symbol on a palette disc, one per badge (16).
+- **card-<n>**, **card-catlady** (480×300, `public/ui/rooms`): each room with its cats where they start, for the book.
 
-**Trailer (`store/trailer.mp4`, 28 s, 1280×720, 30 fps, H.264 + AAC, 7 MB):** autoplay captures (`?autoplay=1&scene=...`,
-`&zoom=` for a closer following camera; never on onceworlds.com), the herder bot playing, the game's own sound.
-1. 0-4 s: Appointment 1. The carrier with 0/2, two cats; the ginger is walked in: IN, 1/2.
-2. 4-9 s: the black cat goes in, 2/2... and the third cat crawls out from under the sofa: 2/3.
-3. 9-12 s: Cat Lady: a crowd of cats round the herder.
-4. 12-19 s: Versus in the library: four colours, cats going in, the counts climbing.
-5. 19-25 s: Kitten Pile: the last kitten in, 4/4, "All in!", three stars.
-6. 25-28 s: "Herding Cats" over the café.
+**Trailer (`store/trailer.mp4`, 27 s, 1280×720, 30 fps, H.264 + AAC, 18 MB):** autoplay captures (`?autoplay=1&scene=...`,
+`&zoom=` for a closer following camera; never on onceworlds.com), the herder bot playing, the game's own sound; hard cuts,
+each shot's sound crossfading 0.12 s into the next.
+1. 0-6.6 s: Kitten Pile. The herder sprints, kittens tumble toward the carrier: IN, Double!, Triple!, a clap, Cat Train! 4/4.
+2. 6.6-11 s: Appointment 1. A cat trotting along its dotted path, IN, 2/2... and a third cat pops up: 2/3.
+3. 11-15.6 s: Cat Café. The laser pointer leads a cat in, then a clap sends three more: Triple!
+4. 15.6-20.8 s: Versus in the Reading Room: four herders in their colours, IN, Double!, Cat Train!
+5. 20.8-23.8 s: "All in!" 0:07.0, the three stars lighting up one by one.
+6. 23.8-27.2 s: "Herding Cats" over the café diorama, the bot still herding below.
 
 ## Originality check
 

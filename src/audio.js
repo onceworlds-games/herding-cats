@@ -342,6 +342,22 @@ export function squeak() {
   for (let i = 0; i < 5; i++) noise(t + 0.12 + i * 0.05, 0.015, { type: 'bandpass', freq: 3000, q: 4, peak: 0.08 });
 }
 
+/** A toy kicked along the floor: a toy mouse squeaks, a yarn ball thumps softly, a ball knocks. Rate-limited. */
+let lastToy = 0;
+export function toy(kind) {
+  if (!ok()) return;
+  const t = ctx.currentTime;
+  if (t - lastToy < 0.18) return;
+  lastToy = t;
+  if (kind === 'mouse') {
+    const f = 2300 + Math.random() * 500;
+    tone('sine', f, t, 0.005, 0.05, 0.07, { to: f * 1.45 });
+    tone('sine', f * 1.3, t + 0.08, 0.005, 0.035, 0.05, { to: f * 1.1 });
+  } else if (kind === 'ball') {
+    if (!play(one('wood', 3), { vol: 0.28, rate: 1.7 })) tone('sine', 420, t, 0.002, 0.08, 0.08, { to: 300 });
+  } else if (!play(one('soft', 2), { vol: 0.22, rate: 1.8 })) noise(t, 0.04, { type: 'lowpass', freq: 900, peak: 0.08 });
+}
+
 export function hop() {
   if (!ok()) return;
   if (!play(one('soft', 2), { vol: 0.3, rate: 1.35 })) noise(ctx.currentTime, 0.05, { type: 'lowpass', freq: 600, peak: 0.12 });

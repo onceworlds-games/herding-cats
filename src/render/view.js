@@ -84,7 +84,7 @@ export function createView(stage, { onStamp = null } = {}) {
     v.g = g;
     v.floor = g.room.floor;
     v.dustColor = g.room.floor === 'grass' ? '#c9d9a8' : g.room.floor === 'carpet' ? '#e6d6c4' : '#efe2c8';
-    v.room = buildRoom(g.room, g.world, { quality: stage.quality, onLand });
+    v.room = buildRoom(g.room, g.world, { quality: stage.quality, onLand, onKick: (kind) => sfx.toy(kind) });
     root.add(v.room.group);
     stage.setRoom(g.room.w, g.room.d);
     stage.backdrop.set(v.room.backdrop);

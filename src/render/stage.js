@@ -196,7 +196,7 @@ export function createStage(canvas, { poster = false } = {}) {
    * Frames the room: whole (follow = 0), or about `follow` units round `focus`, leaning toward `lean` (the carrier,
    * the next cat) and ahead of where the focus is going (`ahead` {x, z}).
    */
-  st.frame = (focus, { follow = 0, snap = false, zoom = 1, lean = null, ahead = null } = {}) => {
+  st.frame = (focus, { follow = 0, snap = false, zoom = 1, lean = null, leanK = 0.22, ahead = null } = {}) => {
     const { w, d } = st.bounds;
     const fit = fitSpan(w, d, st.w / st.h) * zoom;
     let span = fit;
@@ -205,7 +205,7 @@ export function createStage(canvas, { poster = false } = {}) {
       span = follow * zoom;
       let fx = focus.x, fz = focus.z;
       if (ahead) { fx += ahead.x; fz += ahead.z; }
-      if (lean) { fx += (lean.x - fx) * 0.22; fz += (lean.z - fz) * 0.22; }
+      if (lean) { fx += (lean.x - fx) * leanK; fz += (lean.z - fz) * leanK; }
       // the back walls stay in view; past the open front edges, never much void
       const m0 = span * 0.3, m1 = span * 0.46;
       center.set(clamp(fx, Math.min(w / 2, m0), Math.max(w / 2, w - m1)), 0, clamp(fz, Math.min(d / 2, m0), Math.max(d / 2, d - m1)));

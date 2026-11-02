@@ -31,7 +31,7 @@ const POTS = ['#c66a43', '#e9e2d6', '#3f8a86', '#d9a23a', '#2c2727'];
 
 const FLOORS = {
   oak: { planks: 'wood', rows: 10, color: '#e4b081', tile: 3.6, rough: 0.5 },
-  carpet: { tex: 'carpet', color: '#c9ad92', tile: 1.6, rough: 0.95, n: 0.7 },
+  carpet: { tex: 'carpet', color: '#c9ad92', tile: 3.2, rough: 0.95, n: 0.7, woven: true },
   tile: { tex: 'tile', color: '#f6ecda', tile: 2.2, rough: 0.35, n: 0.5 },
   checker: { tex: 'checker', color: '#f6ecda', tile: 2.6, rough: 0.3, n: 0.4 },
   grass: { tex: 'grass', color: '#8cbf63', tile: 3.0, rough: 0.95, n: 0.8 },
@@ -49,6 +49,14 @@ const WALLS = {
   brick: { brick: true, paper: '#d08465', trim: '#e7dccb' },
   white: { paper: '#f1f0ea', ink: '#e2e6e4', pattern: 'plank', wains: '#3f7fa8', trim: '#ffffff' },
   glass: { glass: true, paper: '#bcd8d2', trim: '#f6f6f2' },
+};
+
+// wall-to-wall carpet, by the room's walls: a woven pattern in the room's colours over the pile
+const CARPETS = {
+  burgundy: { base: '#a7ae8c', ink: '#7c8a68', accent: '#c99a44', dot: '#efe2c8', motif: 'trellis' },
+  blush: { base: '#cfb393', ink: '#c09f80', accent: '#c96f7c', dot: '#7f9a6c', motif: 'floral' },
+  butter: { base: '#a7b2c4', ink: '#93a0b5', accent: '#f1e7d3', dot: '#7f8ea8', motif: 'floral' },
+  sage: { base: '#cdb796', ink: '#a8895f', accent: '#efe2c8', dot: '#f1e6cc', motif: 'dots' },
 };
 
 // ---------------------------------------------------------------- materials
@@ -259,6 +267,67 @@ function plankTexture(name, rows) {
   });
 }
 
+/** Wall-to-wall carpet: a motif that tiles (4 repeats across), the pile photo multiplied over it. */
+function carpetTexture(spec) {
+  return mat(`carpet:${spec.base}:${spec.motif}`, () => canvasTex(1024, 1024, (g, S) => {
+    const c = S / 4;
+    g.fillStyle = spec.base;
+    g.fillRect(0, 0, S, S);
+    // every motif is drawn again one tile over on each side so the edges join
+    const wrap = (x, y, f) => { for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) f(x + ox, y + oy); };
+    const dot = (x, y, r, col) => { g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); };
+    const petals = (x, y, n, r, d, col, turn = 0) => {
+      g.fillStyle = col;
+      for (let i = 0; i < n; i++) {
+        const a = turn + (i / n) * Math.PI * 2;
+        g.beginPath(); g.ellipse(x + Math.cos(a) * d, y + Math.sin(a) * d, r, r * 0.62, a, 0, Math.PI * 2); g.fill();
+      }
+    };
+    if (spec.motif === 'trellis' || spec.motif === 'diamond') {
+      const trellis = spec.motif === 'trellis';
+      g.strokeStyle = spec.ink;
+      g.lineWidth = trellis ? 10 : 6;
+      g.beginPath();
+      for (let k = -4; k <= 8; k++) {
+        g.moveTo(k * c, 0); g.lineTo(k * c + S, S);
+        g.moveTo(k * c, 0); g.lineTo(k * c - S, S);
+      }
+      g.stroke();
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+        // a rosette at every crossing, a dot in the middle of each diamond
+        const knot = (x, y) => { if (trellis) { petals(x, y, 4, 24, 20, spec.accent, Math.PI / 4); dot(x, y, 9, spec.dot); } else dot(x, y, 8, spec.ink); };
+        wrap(i * c, j * c, knot);
+        wrap((i + 0.5) * c, (j + 0.5) * c, knot);
+        wrap((i + 0.5) * c, j * c, (x, y) => dot(x, y, trellis ? 7 : 10, spec.dot));
+        wrap(i * c, (j + 0.5) * c, (x, y) => dot(x, y, trellis ? 7 : 10, spec.dot));
+      }
+    } else if (spec.motif === 'floral') {
+      // sprigs on a half-drop grid, little tonal dots between
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+        const x = (i + (j % 2) * 0.5) * c, y = j * c;
+        wrap(x, y, (px, py) => {
+          g.fillStyle = spec.dot;
+          for (const a of [0.6, 0.6 + Math.PI]) { g.beginPath(); g.ellipse(px + Math.cos(a) * 34, py + Math.sin(a) * 34, 17, 7, a, 0, Math.PI * 2); g.fill(); }
+          petals(px, py, 5, 15, 15, spec.accent, j * 0.7);
+          dot(px, py, 8, '#efe2c8');
+        });
+        wrap(x + c / 2, y + c / 2, (px, py) => dot(px, py, 6, spec.ink));
+      }
+    } else {
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 8; j++) {
+        wrap((i + (j % 2) * 0.5) * c, j * c / 2, (x, y) => { dot(x, y, 15, spec.ink); dot(x, y, 6, spec.dot); });
+      }
+    }
+    // the pile over it all
+    const src = surface('carpet').image;
+    if (src?.width) {
+      g.globalCompositeOperation = 'multiply';
+      for (let y = 0; y < S; y += 256) for (let x = 0; x < S; x += 256) g.drawImage(src, x, y, 256, 256);
+      g.globalCompositeOperation = 'source-over';
+    }
+  }));
+}
+
 function rugTexture(color, seed) {
   return canvasTex(256, 256, (g, w, h) => {
     const base = color, dark = shade(color, -0.12), light = shade(color, 0.16);
@@ -269,9 +338,11 @@ function rugTexture(color, seed) {
     g.fillStyle = light;
     const kind = seed % 3;
     if (kind === 0) {
+      // a medallion: a light oval, the ground colour inside it, a small diamond at the heart
       g.beginPath(); g.ellipse(w / 2, h / 2, w * 0.22, h * 0.16, 0, 0, Math.PI * 2); g.fill();
-      g.fillStyle = dark; g.beginPath(); g.ellipse(w / 2, h / 2, w * 0.1, h * 0.07, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = base; g.beginPath(); g.ellipse(w / 2, h / 2, w * 0.16, h * 0.105, 0, 0, Math.PI * 2); g.fill();
       g.fillStyle = light;
+      g.beginPath(); g.moveTo(w / 2, h / 2 - 14); g.lineTo(w / 2 + 20, h / 2); g.lineTo(w / 2, h / 2 + 14); g.lineTo(w / 2 - 20, h / 2); g.closePath(); g.fill();
       for (const [x, y] of [[0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]]) { g.beginPath(); g.arc(w * x, h * y, 7, 0, Math.PI * 2); g.fill(); }
     } else if (kind === 1) {
       for (let y = 52; y < h - 44; y += 26) g.fillRect(48, y, w - 96, 8);
@@ -827,6 +898,18 @@ function braidTexture(cols) {
       }
       g.stroke();
     }
+    // the straight braid in the middle the rug was coiled round
+    const core = c2 - c1;
+    if (core > 0) {
+      g.lineCap = 'round';
+      g.lineWidth = band * 1.5; g.strokeStyle = tones[1];
+      g.beginPath(); g.moveTo(c1, cy); g.lineTo(c2, cy); g.stroke();
+      g.lineCap = 'butt';
+      g.lineWidth = 1; g.strokeStyle = shade(tones[1], -0.12);
+      g.beginPath();
+      for (let x = c1 - 2; x <= c2 + 2; x += 3.6) { g.moveTo(x - 1.6, cy - band * 0.6); g.lineTo(x + 1.6, cy + band * 0.6); }
+      g.stroke();
+    }
   }));
 }
 const BRAIDS = [
@@ -1004,7 +1087,7 @@ function hashStr(str) {
  * The room's clutter, drawn only: braided rugs in the emptiest floor, bowls, beds and posts by the walls, toys about.
  * Toys (yarn, mice, balls) get kicked along when a cat or a person runs through them. Returns { group, update, tidy }.
  */
-function decorate(room, world, quality) {
+function decorate(room, world, quality, onKick = null) {
   const group = new THREE.Group();
   const toys = [];
   const none = { group, update() {}, tidy() {} };
@@ -1134,7 +1217,10 @@ function decorate(room, world, quality) {
         t.z = m.z + nz * reach;
         const push = Math.min(5.5, 0.9 + (m.sp ?? 0) * 1.15);
         const along = t.vx * nx + t.vz * nz;
-        if (along < push) { t.vx += nx * (push - along); t.vz += nz * (push - along); }
+        if (along < push) {
+          if (push - along > 1.6) onKick?.(t.kind);
+          t.vx += nx * (push - along); t.vz += nz * (push - along);
+        }
         t.spin = (rng() - 0.5) * 14;
       }
       const sp = Math.hypot(t.vx, t.vz);
@@ -1214,7 +1300,7 @@ function ditherMat(m, u) {
   return d;
 }
 
-export function buildRoom(room, world, { quality = 'high', onLand = null } = {}) {
+export function buildRoom(room, world, { quality = 'high', onLand = null, onKick = null } = {}) {
   const group = new THREE.Group();
   const W = room.w, D = room.d;
   const outdoor = isOutdoor(room);
@@ -1272,6 +1358,17 @@ export function buildRoom(room, world, { quality = 'high', onLand = null } = {})
     const t = plankTexture(floorSpec.planks, floorSpec.rows);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     floorMat = new THREE.MeshStandardMaterial({ color: floorSpec.color, map: t, bumpMap: t, bumpScale: 1.2, roughness: floorSpec.rough, aoMap: ao, aoMapIntensity: 1 });
+  } else if (floorSpec.woven) {
+    const t = carpetTexture(CARPETS[room.wall] ?? CARPETS.sage);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    const n = surface(floorSpec.tex, true).clone();
+    n.repeat.set(4, 4);
+    n.needsUpdate = true;
+    own.push(n);
+    floorMat = new THREE.MeshStandardMaterial({
+      color: '#ffffff', map: t, normalMap: n, normalScale: new THREE.Vector2(floorSpec.n, floorSpec.n),
+      roughness: floorSpec.rough, aoMap: ao, aoMapIntensity: 1,
+    });
   } else {
     floorMat = new THREE.MeshStandardMaterial({
       color: floorSpec.color, map: surface(floorSpec.tex), normalMap: surface(floorSpec.tex, true), normalScale: new THREE.Vector2(floorSpec.n, floorSpec.n),
@@ -1725,7 +1822,7 @@ export function buildRoom(room, world, { quality = 'high', onLand = null } = {})
     p.obj.rotateZ(-p.ang);
   }
 
-  const decor = decorate(room, world, quality);
+  const decor = decorate(room, world, quality, onKick);
   group.add(decor.group);
 
   // tall pieces (shelves, wardrobes, the fridge, the shed) dither out while they hide a cat or a person from the camera

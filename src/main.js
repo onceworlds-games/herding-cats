@@ -40,7 +40,7 @@ import { icon } from './ui/icons.js';
 import { herderCard, goalsBox, dailyTicket, bookGrid, wardrobePanel, catalogPanel, challengeChip, catPicture, itemPicture, sockets } from './ui/screens.js';
 import { resultPanel } from './ui/results.js';
 import { dailySetup } from './sim/daily.js';
-import { liveState, CHALLENGES } from './meta/challenges.js';
+import { liveState, passed, CHALLENGES } from './meta/challenges.js';
 import { ITEM, itemAt, LEVEL_ITEMS } from './meta/herder.js';
 import { PAGES, pageState } from './meta/catalog.js';
 import { STAR } from './meta/progress.js';
@@ -886,6 +886,22 @@ async function boot() {
     return innerWidth >= innerHeight ? 8 : 6.6;
   }
 
+  /** The follow camera looks a little ahead of the herder and leans toward their carrier as it comes into reach. */
+  function aim(p, k, span) {
+    if (!p || !Number.isFinite(p.vx) || !Number.isFinite(p.vz)) return {};
+    let ax = p.vx * 0.32, az = p.vz * 0.32;
+    const m = Math.hypot(ax, az);
+    if (m > 1.1) { ax *= 1.1 / m; az *= 1.1 / m; }
+    const out = { ahead: { x: ax, z: az } };
+    if (k) {
+      const d = Math.hypot(k.x - p.x, k.z - p.z);
+      const t = Math.min(1, Math.max(0, (d - span * 0.55) / (span * 0.7)));
+      out.lean = k;
+      out.leanK = 0.36 * (1 - t * t * (3 - 2 * t));
+    }
+    return out;
+  }
+
   /** An appointment (n), or the Daily when `daily` is today's setup (dailySetup). */
   function startLevel(n, { auto = false, daily = null } = {}) {
     const setup = daily ? { level: daily, room: daily.room, cats: daily.cats, twists: daily.twists } : levelSetup(n);
@@ -1121,8 +1137,9 @@ async function boot() {
       const k = g.carriers[0];
       besidePanel(k.x + k.nx * 0.6, k.z + k.nz * 0.6, 5);
     } else {
-      const focus = r.introCat && r.introT > 0 ? r.introCat : r.me;
-      stage.frame(focus, { follow: followSpan(), zoom: r.introCat && r.introT > 0 ? 0.8 : 1 });
+      const intro = r.introCat && r.introT > 0;
+      const span = followSpan();
+      stage.frame(intro ? r.introCat : r.me, { follow: span, zoom: intro ? 0.8 : 1, ...(intro ? {} : aim(r.me, g.carriers[0], span)) });
     }
     // done
     if (g.over && !r.over) {
@@ -1241,7 +1258,7 @@ async function boot() {
       acts.push(button('Retry', { cls: 'red', key: 'Enter', onClick: () => retry() }), button(app.net ? 'Lobby' : 'Book', { key: 'Esc', onClick: () => quitRun() }));
       app.primary = () => retry();
     } else {
-      const mask = rep ? rep.stars : (res.allIn ? STAR.allIn : 0) | (res.allIn && res.time <= L.par ? STAR.par : 0);
+      const mask = rep ? rep.stars : (res.allIn ? STAR.allIn : 0) | (res.allIn && res.time <= L.par ? STAR.par : 0) | (passed(L.challenge, res) ? STAR.challenge : 0);
       o = {
         title: res.allIn ? 'All in!' : 'Missed appointment', good: res.allIn,
         sub: kind === 'daily' ? `Daily · ${L.name}` : `Appointment ${r.n} · ${L.name}`,
@@ -1413,8 +1430,9 @@ async function boot() {
       else focus = leaderPerson(s);
     }
     const span = matchFollow();
-    stage.frame(focus, focus ? { follow: span } : { zoom: 1.02 });
     const mineI = s.me ? s.data.seats.indexOf(s.me) : -1;
+    const own = mineI >= 0 && focus === s.people.get(s.me) ? s.g.carriers[s.data.mode === 'together' ? 0 : mineI] : null;
+    stage.frame(focus, focus ? { follow: span, ...aim(focus, own, span) } : { zoom: 1.02 });
     if (src.phase === 'round' && mineI >= 0 && !s.g.over) {
       const together = s.data.mode === 'together';
       const k = s.g.carriers[together ? 0 : mineI];
@@ -1711,9 +1729,21 @@ async function boot() {
   // ------------------------------------------------------------------ the loop
   let last = performance.now();
   let touchCheck = 0;
+  let frameFailed = false;
   function frame() {
     requestAnimationFrame(frame);
     if (document.hidden) return;
+    try {
+      frameStep();
+    } catch (err) {
+      if (!frameFailed) { frameFailed = true; console.error(err); }
+    }
+    // every frame draws, even after a failed step (a page that skips a draw can stall a capture's clock)
+    try { stage.render(); } catch { /* the next frame tries again */ }
+    try { tagsDone(); arrowsDone(); } catch { /* likewise */ }
+  }
+
+  function frameStep() {
     // the page's own clock (not the frame's timestamp), which also follows a capture's virtual time
     const now = performance.now();
     const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
@@ -1786,9 +1816,6 @@ async function boot() {
     }
     if (view.g) view.update(vdt, app.t, { alpha, me, offsets, away, reducedMotion: reduced(), guides: app.screen === 'solo' || app.screen === 'match' });
     stage.update(dt);
-    stage.render();
-    tagsDone();
-    arrowsDone();
   }
 
   // ------------------------------------------------------------------ autoplay (trailer takes, never on onceworlds.com)

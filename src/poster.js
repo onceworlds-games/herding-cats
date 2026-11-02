@@ -267,7 +267,8 @@ const SCENES = {
 
   // the icon: the carrier and a cat on its doormat, nothing else
   icon(view, stage) {
-    const g = room(ROOMS.studio);
+    // no floor clutter: one subject
+    const g = room({ ...ROOMS.studio, decor: false });
     const k = g.carriers[0];
     cat(g, 'moggy', 'ginger', k.matX + 0.25, k.matZ + 0.05, S.content, { h: Math.PI * 0.82 });
     view.show(g, { people: [], me: -1, total: 'solo' });

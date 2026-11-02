@@ -770,31 +770,62 @@ function plaidTexture(color) {
     return new THREE.MeshStandardMaterial({ map: t, roughness: 0.97 });
   });
 }
-/** A braided rag rug: narrow rings close in tone (the main colour and its shades), now and then an accent, each ring
- * twisted; a darker edge. Tonal, so it reads as a woven mat and not a target. */
+/**
+ * A braided oval rag rug: narrow rings round a centre seam (a stadium), close in tone (the main colour and its shades), now
+ * and then an accent, each ring twisted; a darker edge. Transparent outside the oval (the mesh alpha-tests it).
+ */
+const BRAID_W = 416, BRAID_H = 256, BRAID_ASPECT = BRAID_W / BRAID_H;
 function braidTexture(cols) {
-  return mat(`braid:${cols.join()}`, () => canvasTex(256, 256, (g, w) => {
-    const c = w / 2;
+  return mat(`braid:${cols.join()}`, () => canvasTex(BRAID_W, BRAID_H, (g, w, h) => {
+    const cy = h / 2, R = h / 2 - 1, half = w / 2 - h / 2, c1 = w / 2 - half, c2 = w / 2 + half;
     let seed = hashStr(cols.join()) || 1;
     const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
     const main = cols[0];
     const tones = [main, shade(main, 0.05), shade(main, -0.05), shade(main, 0.09)];
-    g.fillStyle = shade(main, -0.22); g.fillRect(0, 0, w, w);
-    const band = 5.2;
-    for (let r = c - 1, i = 0; r > 3; r -= band, i++) {
-      // the edge a shade darker, accents only through the middle (a plain centre, so no bullseye)
-      const accent = r > c * 0.3 && r < c * 0.85 && rnd() < 0.14;
+    const stadium = (d) => {
+      g.beginPath();
+      g.moveTo(c1, cy - d); g.lineTo(c2, cy - d);
+      g.arc(c2, cy, d, -Math.PI / 2, Math.PI / 2);
+      g.lineTo(c1, cy + d);
+      g.arc(c1, cy, d, Math.PI / 2, Math.PI * 1.5);
+      g.closePath();
+    };
+    // a point on the stadium at offset d, `s` along its edge, with its outward normal
+    const at = (d, s) => {
+      const L = c2 - c1, arc = Math.PI * d;
+      if (s < L) return [c1 + s, cy - d, 0, -1];
+      s -= L;
+      if (s < arc) { const a = -Math.PI / 2 + s / d; return [c2 + Math.cos(a) * d, cy + Math.sin(a) * d, Math.cos(a), Math.sin(a)]; }
+      s -= arc;
+      if (s < L) return [c2 - s, cy + d, 0, 1];
+      s -= L;
+      const a = Math.PI / 2 + s / d;
+      return [c1 + Math.cos(a) * d, cy + Math.sin(a) * d, Math.cos(a), Math.sin(a)];
+    };
+    stadium(R);
+    g.fillStyle = shade(main, -0.22);
+    g.fill();
+    const band = 5.4;
+    for (let d = R, i = 0; d > band * 0.6; d -= band, i++) {
+      // the edge a shade darker, accents only through the middle
+      const accent = d > R * 0.3 && d < R * 0.85 && rnd() < 0.14;
       const col = i < 2 ? shade(main, -0.1) : accent ? cols[1 + Math.floor(rnd() * (cols.length - 1))] : tones[Math.floor(rnd() * tones.length)];
+      const mid = Math.max(1, d - band / 2);
       g.lineWidth = band - 0.4; g.strokeStyle = col;
-      g.beginPath(); g.arc(c, c, Math.max(1, r - band / 2), 0, Math.PI * 2); g.stroke();
+      stadium(mid);
+      g.stroke();
       g.lineWidth = 1; g.strokeStyle = shade(col, -0.12);
-      const n = Math.max(6, Math.round((r * Math.PI * 2) / 3.6));
-      const lean = i % 2 ? 0.05 : -0.05;
+      const P = 2 * (c2 - c1) + 2 * Math.PI * mid;
+      const n = Math.max(6, Math.round(P / 3.6));
+      const lean = i % 2 ? 1.6 : -1.6;
+      g.beginPath();
       for (let j = 0; j < n; j++) {
-        const a = (j / n) * Math.PI * 2;
-        const r0 = r - band + 0.8, r1 = r - 0.8;
-        g.beginPath(); g.moveTo(c + Math.cos(a) * r0, c + Math.sin(a) * r0); g.lineTo(c + Math.cos(a + lean) * r1, c + Math.sin(a + lean) * r1); g.stroke();
+        const [x, y, nx, ny] = at(mid, (j / n) * P);
+        const k = band / 2 - 0.8;
+        g.moveTo(x - nx * k, y - ny * k);
+        g.lineTo(x + nx * k - ny * lean, y + ny * k + nx * lean);
       }
+      g.stroke();
     }
   }));
 }
@@ -1015,10 +1046,23 @@ function decorate(room, world, quality) {
       const r = Math.min(1.55, best.d - 0.2);
       roundRugs.push({ x: best.x, z: best.z, r });
       const cols = BRAIDS[(hashStr(room.id ?? '') + n) % BRAIDS.length];
-      const rugM = new THREE.Mesh(dgeo('roundRug', () => new THREE.CylinderGeometry(1, 1, 0.016, 56)), mat(`braidM:${cols.join()}`, () => new THREE.MeshStandardMaterial({ map: braidTexture(cols), roughness: 0.97 })));
-      rugM.scale.set(r, 1, r * (0.82 + rng() * 0.18));
-      rugM.rotation.y = rng() * Math.PI;
-      rugM.position.set(best.x, 0.008, best.z);
+      // an oval, its long way along whichever direction has the most room at both ends
+      const wid = 1.5 * r, len = wid * BRAID_ASPECT, reach = (len - wid) / 2;
+      let ang = 0, bestEnd = -Infinity;
+      for (let k = 0; k < 8; k++) {
+        const t = (k / 8) * Math.PI + rng() * 0.05;
+        const ex = Math.cos(t) * reach, ez = Math.sin(t) * reach;
+        roundRugs.pop();
+        const e = Math.min(room4(best.x + ex, best.z + ez), room4(best.x - ex, best.z - ez));
+        roundRugs.push({ x: best.x, z: best.z, r });
+        if (e > bestEnd) { bestEnd = e; ang = t; }
+      }
+      roundRugs[roundRugs.length - 1].r = len / 2;
+      const rugM = new THREE.Mesh(dgeo('ovalRug', () => new THREE.PlaneGeometry(BRAID_ASPECT, 1).rotateX(-Math.PI / 2)),
+        mat(`braidM:${cols.join()}`, () => new THREE.MeshStandardMaterial({ map: braidTexture(cols), roughness: 0.97, alphaTest: 0.5 })));
+      rugM.scale.set(wid, 1, wid);
+      rugM.rotation.y = -ang;
+      rugM.position.set(best.x, 0.012, best.z);
       rugM.receiveShadow = true;
       group.add(rugM);
     }

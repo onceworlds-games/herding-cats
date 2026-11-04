@@ -10,10 +10,8 @@ import { createNet } from './net/net.js';
 
 const params = new URLSearchParams(location.search);
 const POSTER = params.get('poster');
-// ?autoplay: the trailer's takes and the tools' pictures play by themselves (never on onceworlds.com); ?autoplay-to=title|lobby
-// goes that far like a player would
+// ?autoplay: the trailer's takes and the tools' pictures play by themselves (never on onceworlds.com)
 const AUTOPLAY = params.has('autoplay') && !/onceworlds\.com$/.test(location.hostname);
-const AUTOPLAY_TO = /onceworlds\.com$/.test(location.hostname) ? null : params.get('autoplay-to');
 // a take's camera: about this many units across the short side, following the herder (autoplay only)
 const TAKE_SPAN = AUTOPLAY ? Math.max(0, Math.min(30, Number(params.get('zoom')) || 0)) : 0;
 const ow = POSTER ? null : window.onceworlds ?? null;
@@ -140,7 +138,8 @@ async function boot() {
     if (k === 'k' || k === 'shift') { if (app.screen === 'solo' || app.screen === 'match') { press('clap'); return; } }
     if (k === 'escape' || k === 'p') { onBack(k); return; }
     if (k === 'r' && app.keyR) { app.keyR(); return; }
-    if (k === 'enter' || (k === ' ' && app.screen !== 'solo')) {
+    // Enter is the platform's Ready key while the lobby is up (it is up on every screen but the room-closed one and a match).
+    if ((k === 'enter' && app.screen === 'closed') || (k === ' ' && (app.screen !== 'solo' || app.run?.over))) {
       const a = document.activeElement;
       if (a && a.tagName === 'BUTTON') return;
       if (app.primary) { e.preventDefault(); app.primary(); }
@@ -149,6 +148,7 @@ async function boot() {
   addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
   addEventListener('blur', () => keys.clear());
   addEventListener('pointerdown', () => sfx.unlock(), { capture: true });
+  addEventListener('keydown', () => sfx.unlock(), { capture: true });
 
   function stick() {
     let sx = 0;
@@ -389,7 +389,6 @@ async function boot() {
     app.hud = null;
   }
 
-  function hideLobbyStrip(on) { app.net?.hideLobby(on); }
   /** Where the page is, for tools that take its picture. */
   function flow(where) { try { document.body.dataset.flow = where; } catch { /* ignore */ } }
 
@@ -418,41 +417,16 @@ async function boot() {
     return { hat: itemAt('hat', lk[0]), clap: itemAt('clap', lk[1]), trail: itemAt('trail', lk[2]) };
   }
 
-  // ---------- title: the café in attract mode, the wordmark, one Play button
+  // ---------- on the way in: the café in attract mode and the wordmark, until the room answers
   const letters = (word, from) => [...word].map((ch, i) => `<span style="--i:${from + i}">${esc(ch)}</span>`).join('');
   function showTitle() {
     clearUI();
     setScreen('title');
-    hideLobbyStrip(true);
     startAttract();
     const root = el('section', '', '');
     root.id = 'title';
     root.innerHTML = `<div class="mark ink"><h1><span class="w">${letters('Herding', 0)}</span><span class="w">${letters('Cats', 7)}</span></h1></div>`;
-    const play = button('Play', { cls: 'red big play live', key: 'Enter', onClick: () => onPlay() });
-    root.appendChild(play);
-    const h = save.herder();
-    if (save.progress.xp > 0) {
-      const strip = el('div', 'strip');
-      strip.appendChild(herderCard(h, { compact: true }));
-      const st = el('div', 'chips');
-      const streak = save.streak();
-      st.innerHTML = `<span class="chipx">${star(true, 26)}<b class="num">${save.totalStars()}</b></span>${streak > 0 ? `<span class="chipx">${icon('flame', { fill: '#ff8a3d', size: 26 })}<b class="num">${streak}</b></span>` : ''}`;
-      strip.appendChild(st);
-      root.appendChild(strip);
-    }
     ui.appendChild(root);
-    app.primary = () => onPlay();
-    setTimeout(() => { try { play.focus({ preventScroll: true }); } catch { /* ignore */ } }, 50);
-  }
-
-  function onPlay() {
-    sfx.unlock();
-    sfx.tap();
-    sfx.setMusic('menu', { seed: 3 });
-    const others = app.net ? (app.net.room.online?.length ?? 1) > 1 : false;
-    if (!save.levelDone(1) && !others) { startLevel(1); return; }
-    if (app.net) showLobby();
-    else showBook();
   }
 
   // ---------- the waiting room: who's here, settings, the solo tickets; the platform's Ready strip below
@@ -460,7 +434,6 @@ async function boot() {
     if (!app.net) { showBook(); return; }
     clearUI();
     setScreen('lobby');
-    hideLobbyStrip(false);
     startWaiting();
     sfx.setMusic('menu');
     const root = el('section');
@@ -472,8 +445,8 @@ async function boot() {
     root.appendChild(side);
     ui.appendChild(root);
     app.lobbyUI = { board, tickets, key: '' };
-    app.backAction = () => showTitle();
     refreshLobby(true);
+    lastResults(root);
   }
 
   function refreshLobby(force = false) {
@@ -542,13 +515,12 @@ async function boot() {
     if (app.net?.friendsWaiting()) { showLobby(); return; }
     clearUI();
     setScreen('book');
-    hideLobbyStrip(true);
     if (!app.scene || (app.scene !== 'waiting' && app.scene !== 'attract')) { leaveScene(); startAttract(); }
     const root = el('section');
     root.id = 'book';
     const head = el('header');
     head.innerHTML = `<h2 class="ink">Appointments</h2><span class="total num ink">${star(true, 30)}${save.totalStars()}/45</span>`;
-    head.appendChild(button('Back', { cls: 'live', key: 'Esc', onClick: () => goHome() }));
+    if (app.net) head.appendChild(button('Back', { cls: 'live', key: 'Esc', onClick: () => goHome() }));
     const body = el('div', 'body live');
     const side = el('aside', 'side');
     side.appendChild(herderCard(save.herder(), { onClick: () => { sfx.tap(); showWardrobe(); } }));
@@ -598,7 +570,7 @@ async function boot() {
   function goHome() {
     sfx.tap();
     if (app.net) showLobby();
-    else showTitle();
+    else showBook();
   }
 
   // ---------- the wardrobe: the herder in the studio, trying things on
@@ -608,7 +580,6 @@ async function boot() {
     const from = app.screen === 'lobby' ? 'lobby' : 'book';
     clearUI();
     setScreen('wardrobe');
-    hideLobbyStrip(true);
     app.wardTab = tab;
     app.wardFrom = again && app.wardFrom ? app.wardFrom : from;
     if (app.scene !== 'dressing') startDressing();
@@ -728,7 +699,6 @@ async function boot() {
     if (app.net?.friendsWaiting()) { showLobby(); return; }
     clearUI();
     setScreen('catalog');
-    hideLobbyStrip(true);
     if (app.scene !== 'attract') { leaveScene(); startAttract(); }
     app.catPage = page;
     const root = el('section');
@@ -810,7 +780,7 @@ async function boot() {
     const lob = n.match.lobby?.players ?? [];
     return lob.slice(0, 6).map((p) => {
       const rp = n.room.players.get(p.id);
-      return { id: p.id, name: p.name, ready: p.ready, host: p.host, me: p.me, away: p.away, solo: rp?.presence?.s === 'solo' };
+      return { id: p.id, name: p.name, host: p.host, me: p.me, away: p.away, solo: rp?.presence?.s === 'solo' };
     });
   }
 
@@ -853,7 +823,6 @@ async function boot() {
         const bits = [];
         if (r.host) bits.push(symbolSvg('bell', '#f6b941', '#2b1d1c', 22));
         bits.push(`<span>${esc(r.name)}</span>`);
-        if (r.ready) bits.push(symbolSvg('check', '#4f9a5e', '#2b1d1c', 24));
         const sub = r.solo ? '<span class="note" style="display:block;text-align:center;color:#f6b941">At the vet</span>' : '';
         tag(`lob:${r.id}`, `<span style="display:flex;gap:5px;align-items:center">${bits.join('')}</span>${sub}`, p.x, 1.55, p.z, `tag ink${r.me ? ' me' : ''}${r.away ? ' dim' : ''}`);
       });
@@ -925,7 +894,6 @@ async function boot() {
     view.show(g, { people: [{ avatar: avatarOf(myId()), seed: 1, wear: w }], me: 0, total: 'solo', skins: [w.carrier] });
     stage.frame(app.run.introCat ?? me, { follow: followSpan(), snap: true, zoom: app.run.introCat ? 0.8 : 1 });
     setScreen('solo');
-    hideLobbyStrip(true);
     buildSoloHud();
     sfx.setMusic('play', { seed: daily ? daily.day : n });
     sfx.clank();
@@ -955,7 +923,6 @@ async function boot() {
     view.show(g, { people: [{ avatar: avatarOf(myId()), seed: 1, wear: w }], me: 0, total: 'versus', skins: [w.carrier] });
     stage.frame(me, { follow: followSpan(), snap: true });
     setScreen('solo');
-    hideLobbyStrip(true);
     buildSoloHud();
     sfx.setMusic('play', { seed: 77 });
   }
@@ -1255,7 +1222,7 @@ async function boot() {
         title: 'Shift over', good: g.boxed > 0, sub: 'Cat Lady', big: { label: 'Cats boxed', value: String(g.boxed) },
         lines: [['Shift', fmtTime(g.elapsed)], ['Best', String(Math.max(best, g.boxed))]], newBest: !r.auto && g.boxed > prevShift && prevShift > 0,
       };
-      acts.push(button('Retry', { cls: 'red', key: 'Enter', onClick: () => retry() }), button(app.net ? 'Lobby' : 'Book', { key: 'Esc', onClick: () => quitRun() }));
+      acts.push(button('Retry', { cls: 'red', key: 'Space', onClick: () => retry() }), button(app.net ? 'Lobby' : 'Book', { key: 'Esc', onClick: () => quitRun() }));
       app.primary = () => retry();
     } else {
       const mask = rep ? rep.stars : (res.allIn ? STAR.allIn : 0) | (res.allIn && res.time <= L.par ? STAR.par : 0) | (passed(L.challenge, res) ? STAR.challenge : 0);
@@ -1271,10 +1238,10 @@ async function boot() {
       if (best && !o.newBest) o.lines.push(['Best', fmtTime(best)]);
       const hasNext = kind === 'level' && res.allIn && r.n < LEVELS.length;
       if (hasNext) {
-        acts.push(button('Next', { cls: 'red', key: 'Enter', onClick: () => startLevel(r.n + 1) }), button('Retry', { key: 'R', onClick: () => retry() }));
+        acts.push(button('Next', { cls: 'red', key: 'Space', onClick: () => startLevel(r.n + 1) }), button('Retry', { key: 'R', onClick: () => retry() }));
         app.primary = () => startLevel(r.n + 1);
       } else {
-        acts.push(button('Retry', { cls: 'red', key: 'Enter', onClick: () => retry() }));
+        acts.push(button('Retry', { cls: 'red', key: 'Space', onClick: () => retry() }));
         app.primary = () => retry();
       }
       acts.push(button('Book', { key: 'Esc', onClick: () => quitRun() }));
@@ -1343,7 +1310,7 @@ async function boot() {
     return {
       phase: m.phase, session: n.session, round: m.round, rounds: m.rounds, secondsLeft: m.secondsLeft, countdown: m.countdown,
       standings: m.standings, results: m.results, last: m.last, me: m.me, isHost: m.isHost, kind: n.room.kind,
-      alpha: () => n.alpha(), paused: m.paused,
+      alpha: () => n.alpha(), paused: m.paused, elapsed: m.elapsed,
     };
   }
 
@@ -1351,7 +1318,6 @@ async function boot() {
     if (app.screen !== 'match') {
       clearUI();
       setScreen('match');
-      hideLobbyStrip(false);
       app.mv = { key: null, phase: null, hud: null };
     }
   }
@@ -1361,17 +1327,15 @@ async function boot() {
     if (!src) return;
     const mv = app.mv ?? (app.mv = { key: null, phase: null });
     const s = src.session;
-    // countdown: the waiting room stays, our own 3-2-1 over it
+    // countdown: the waiting room stays, the platform's 3-2-1 over it, a tick from us on each number
     if (src.phase === 'countdown') {
       if (app.scene !== 'waiting') { leaveScene(); startWaiting(); }
       tickWaiting(dt);
-      if (mv.phase !== 'countdown') { clearUI(); mv.phase = 'countdown'; mv.cd = el('div', 'countdown num ink'); ui.appendChild(mv.cd); mv.lastN = null; sfx.setMusic('menu'); }
+      if (mv.phase !== 'countdown') { clearUI(); mv.phase = 'countdown'; mv.lastN = null; sfx.unlock(); sfx.setMusic('menu'); }
       const nleft = Math.max(1, Math.ceil(src.countdown ?? 3));
       if (nleft !== mv.lastN) {
         mv.lastN = nleft;
-        mv.cd.textContent = String(nleft);
         sfx.count(1);
-        if (!reduced()) mv.cd.animate([{ transform: 'translate(-50%, -50%) scale(1.5)', opacity: 0.3 }, { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 }], { duration: 300, easing: 'ease-out' });
       }
       return;
     }
@@ -1526,7 +1490,7 @@ async function boot() {
       const q = view.drawn?.[i] ?? p;
       tag(`nm:${id}`, `${symbolSvg(SEATS[i].symbol, SEATS[i].color, '#2b1d1c', 20)}<span>${esc(seatName(id))}</span>`, q.x, 1.62, q.z, 'tag ink');
     });
-    if (src.phase === 'intro' && s.me) {
+    if ((src.phase === 'intro' || (src.phase === 'round' && src.round === 1 && (src.elapsed ?? 0) < 2500)) && s.me) {
       const i = s.data.seats.indexOf(s.me);
       const k = g.carriers[together ? 0 : i];
       if (k) tag('yours', together ? 'Your carrier' : 'Your carrier', k.x, 2.45, k.z, 'float big ink');
@@ -1542,7 +1506,7 @@ async function boot() {
     if (!hud) return;
     hud.head?.remove();
     hud.head = null;
-    if (src.phase === 'intro') {
+    if (src.phase === 'intro' && src.round > 1) {
       const name = s.g.room.name;
       const head = el('div', 'headline');
       head.innerHTML = `<div class="a">Round ${src.round}${src.rounds ? ` of ${src.rounds}` : ''}</div><div class="b ink">${esc(name)}</div>`;
@@ -1609,22 +1573,22 @@ async function boot() {
       stage.frame(null, { zoom: 1.05 });
     } else if (app.scene !== 'waiting') { leaveScene(); startWaiting(); }
     if (app.scene === 'waiting') tickWaiting(dt);
-    if (mv.phase === 'results') {
-      if (mv.ring && src.kind === 'public') {
-        const left = Math.max(0, 25 - (performance.now() - mv.resAt) / 1000);
-        mv.ring.textContent = `Lobby in ${Math.ceil(left)}`;
-      }
-      return;
-    }
+    if (mv.phase === 'results') return;
     mv.phase = 'results';
-    mv.resAt = performance.now();
     clearUI();
     setControls(false);
     const list = src.results ?? src.standings ?? [];
+    app.lastMatch = { n: app.net?.room.match?.n ?? 0, seats: s?.data.seats ?? null };
+    ui.appendChild(podium(list, app.lastMatch.seats, src.me?.id));
+    sfx.fanfare();
+    if (s && list.some((x) => x.place === 1)) view.hints.confetti(s.g.world.w / 2, s.g.world.d / 2, ['#e5493a', '#f6b941', '#fff3df', '#3f7fcb']);
+  }
+
+  /** The match's places. Results start nothing: the platform's strip is the way to the next one. */
+  function podium(list, seats, myId2) {
     const pod = el('div', 'podium');
-    const myId2 = src.me?.id;
     list.slice(0, 6).forEach((st, idx) => {
-      const i = s ? s.data.seats.indexOf(st.id) : idx;
+      const i = seats ? seats.indexOf(st.id) : idx;
       const look = SEATS[i >= 0 ? i : idx % 6];
       const row = el('div', `standing${st.place === 1 ? ' first' : ''}${st.id === myId2 ? ' mine' : ''}`);
       row.innerHTML = `<span class="pl">${st.place}</span>${symbolSvg(look.symbol, look.color, '#2b1d1c', 32)}<span class="nm">${esc(st.name)}</span><span class="pts">${st.points}</span>`;
@@ -1634,26 +1598,34 @@ async function boot() {
     const win = list.find((x) => x.place === 1);
     if (win) {
       const head = el('div', 'headline');
-      head.style.top = 'calc(var(--ct) + 40px)';
       head.innerHTML = `<div class="b ink">${win.id === myId2 ? 'Best in Show!' : `${esc(win.name)}: Best in Show`}</div>`;
       pod.prepend(head);
       head.style.position = 'static';
       head.style.transform = 'none';
     }
-    const acts = el('div', 'acts');
-    if (src.isHost && src.kind !== 'public' && !app.local) {
-      acts.appendChild(button('Lobby', { cls: 'red live', key: 'Enter', onClick: () => app.net?.endMatch() }));
-      app.primary = () => app.net?.endMatch();
-    } else if (src.kind === 'public') {
-      mv.ring = el('div', 'note ink', 'Lobby in 25');
-      acts.appendChild(mv.ring);
-    } else {
-      acts.appendChild(el('div', 'note ink', 'The host picks what\'s next'));
-    }
+    return pod;
+  }
+
+  /** The match just played stays over the waiting room, with the strip below it, until it's closed. */
+  function lastResults(root) {
+    const m = app.net?.match;
+    const last = app.lastMatch;
+    if (!m?.results || !last || last.closed || last.n !== app.net.room.match?.n) return;
+    const pod = podium(m.results, last.seats, m.me?.id);
+    pod.classList.add('over');
+    pod.querySelectorAll('.standing').forEach((r) => r.getAnimations?.().forEach((a) => a.finish()));
+    const close = () => {
+      sfx.tap();
+      last.closed = true;
+      pod.remove();
+      root.classList.remove('hasresults');
+    };
+    const acts = el('div', 'acts live');
+    acts.appendChild(button('Close', { key: 'Esc', onClick: close }));
     pod.appendChild(acts);
-    ui.appendChild(pod);
-    sfx.fanfare();
-    if (s && win) view.hints.confetti(s.g.world.w / 2, s.g.world.d / 2, ['#e5493a', '#f6b941', '#fff3df', '#3f7fcb']);
+    root.appendChild(pod);
+    root.classList.add('hasresults');
+    app.backAction = close;
   }
 
   // ------------------------------------------------------------------ a toast for a short note
@@ -1692,7 +1664,7 @@ async function boot() {
     clearUI();
     const room = await Promise.resolve().then(() => ow?.rooms?.join(JOIN)).catch(() => null);
     if (room) attachNet(room);
-    showTitle();
+    goHome();
   }
 
   // ------------------------------------------------------------------ the net
@@ -1760,6 +1732,13 @@ async function boot() {
     // the match decides the screen while one runs
     if (n && app.screen !== 'closed' && !app.local) {
       const ph = n.phase();
+      // Readying closes whatever is open (the book, the wardrobe, a solo run): the lobby, and the match the moment it starts.
+      const ready = !!n.room.me?.ready;
+      if (ready && !app.wasReady && ph === 'lobby' && app.screen !== 'lobby') {
+        if (app.run) { app.run = null; view.hide(); app.scene = null; }
+        showLobby();
+      }
+      app.wasReady = ready;
       // players in the match go to it from anywhere (a solo run ends itself); watchers only from the waiting room
       const want = n.inMatch() ? app.screen !== 'solo' : app.screen === 'lobby' && (!!n.session || ph === 'results');
       if (ph !== 'lobby' && app.screen !== 'match' && want) {
@@ -1863,8 +1842,7 @@ async function boot() {
     if (params.has('demo')) demoProgress();
     sfx.unlock();
     const sc = params.get('scene') ?? 'versus';
-    if (sc === 'title') showTitle();
-    else if (sc === 'book') showBook();
+    if (sc === 'book') showBook();
     else if (sc === 'wardrobe') showWardrobe(params.get('tab') ?? 'hat');
     else if (sc === 'catalog') showCatalog(Number(params.get('page') ?? 0));
     else if (sc === 'daily') startDaily({ auto: true });
@@ -1873,15 +1851,13 @@ async function boot() {
     else if (sc === 'together') startLocalMatch('together');
     else startLevel(Math.max(1, Math.min(15, Number(params.get('n')) || 1)), { auto: true });
   } else {
+    // The wordmark over the café until the room answers (a guest may be naming themselves), then the lobby. No room: the book.
     showTitle();
     await loading;
     if (app.screen === 'title') showTitle();
     const room = await joining;
-    if (room) {
-      attachNet(room);
-      if (app.screen === 'title') showTitle();
-      if (AUTOPLAY_TO === 'lobby') showLobby();
-    }
+    if (room) attachNet(room);
+    goHome();
   }
 }
 

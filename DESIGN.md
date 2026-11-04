@@ -21,21 +21,20 @@ A first-time player (no save) who is alone in the server:
 
 | Time | What happens | Hint (2-5 words) |
 |---|---|---|
-| 0 s | Title: the Cat Café diorama, a bot cat person herding its eight cats round the tables. "Herding Cats" huge over it, one red **Play** button. | none |
-| ~3 s | Tap Play (sound unlocks). Appointment 1, *Two Lazy Cats*, in a small studio flat: the headline for 2.4 s, the red carrier with **0/2** on it, two cats, the wall clock at 2:00. | none |
+| 0 s | The Waiting Room lobby, as soon as the room answers (the wordmark over the Cat Café until then, no button). The platform's Ready strip at the bottom; a red "Start here" on the Appointments ticket. | none |
+| ~3 s | Tap Appointments, then the first card. Appointment 1, *Two Lazy Cats*, in a small studio flat: the headline for 2.4 s, the red carrier with **0/2** on it, two cats, the wall clock at 2:00. | none |
 | ~5 s | Control is yours. Gold footprints glow on the floor behind the nearest cat, on the far side from the carrier. | "Stand behind it" (over the cat) |
 | ~8 s | You step onto the footprints; the cat flattens its ears and trots away from you, toward the carrier. The clock starts on your first step. | "Push it in" (once it moves) |
 | ~15 s | It reaches the gold doormat and squeezes in. The wire door swings, a latch, "mrrp", a red **IN** stamp thumps above the carrier, a hit-stop, the counter pops to **1/2**. | none |
 | ~28 s | Second cat in. **2/2**, the carrier wobbles... and a third cat crawls out from under the sofa. The counter flips to **2/3** with a "?!" stamp. (The laugh.) | none |
 | ~45 s | Third cat in, in slow motion. "All in!" stamps onto the results: the carrier socket lights, the clock socket (under the 0:25 par), the challenge socket (a Double) if the first two went in together. | none |
-| ~50 s | XP counts into the herder bar: level 2, a Beanie to wear. **Next** is the big button (Enter). | none |
+| ~50 s | XP counts into the herder bar: level 2, a Beanie to wear. **Next** is the big button (Space). | none |
 | ~55 s | Appointment 2 (*Up on the Sofa*): a cat sits on the sofa back and ignores you. | "Shake treats" + key cap J / the Treats button |
 
-A returning player (or anyone joining a server with people in it) goes Play → the Waiting Room lobby (below). After the first
-appointment, the lobby is home: Ready plays a match with bots, Appointments and Cat Lady are the solo content.
+The lobby is home: Ready plays a match with bots, Appointments and Cat Lady are the solo content, with the strip still there.
 
-A first match: Ready → the platform's 3-2-1 plays over the Waiting Room (the game owns its countdown), then the round's
-headline ("Round 1 of 3" over the room's name) for 3 s while the camera shows the whole room, settling on you.
+A first match: Ready → the platform's 3-2-1 plays over the Waiting Room, and when it ends the round is on: no second count, no
+wait. "Your carrier" floats over yours for the first seconds.
 
 ## Controls
 
@@ -45,7 +44,7 @@ headline ("Round 1 of 3" over the room's name) for 3 s while the camera shows th
 | Treats (lure) | J or Space | Button 1 "Treats" (key `j`) |
 | Clap (scatter) | K or Shift | Button 2 "Clap" (key `k`) |
 | Pause (solo) | Esc or P | the platform menu pauses |
-| Menus | Enter = main button, Esc = back, arrows/Tab between buttons | taps |
+| Menus | Space = main button, Esc = back (Enter is the platform's Ready), arrows/Tab between buttons | taps |
 
 No mouse aiming, no hover. The platform's stick and two buttons are the whole phone control set; they're cleared on every
 screen that isn't play. Both orientations work.
@@ -154,9 +153,8 @@ bots for as long as the player likes.
 
 ## Multiplayer
 
-**Public game**, up to 6 per server: `ow.rooms.join({ maxPlayers: 6, minPlayers: 1, lobby: 'bar', ownCountdown: true,
-countdown: 3, settings })`. Joined once, by a small classic script (`public/join.js`) that runs before the game's bundle is
-even parsed, so a reloaded page has its seat back at once. A lone player readies and plays with bots. The title has one button; the
+**Public game**, up to 6 per server: `ow.rooms.join({ maxPlayers: 6, minPlayers: 1, lobby: 'bar', settings })`. Joined once, by a small classic script (`public/join.js`) that runs before the game's bundle is
+even parsed, so a reloaded page has its seat back at once. A lone player readies and plays with bots. The
 platform's menu has private servers and invites.
 
 **Lobby and ready-up.** The game draws the Waiting Room (who's here, the host's settings, the solo tickets); the platform adds
@@ -179,10 +177,10 @@ Carrier spots rotate each round.
 ★ all in, ★★ with 0:30 left, ★★★ with 1:00 left (gold notches on the clock's rim). Results show the team's stars and who boxed most (the last person to push
 each cat gets the credit).
 
-**Rounds and timing.** `createMatch` with `rounds: 'rounds'`, `introSeconds: 3` (the round's headline over the room; the
-3-2-1 before it is the game's own countdown, drawn over the Waiting Room), the clock in the round data, 120 s (Versus) / 150 s
-(Together), `roundEndSeconds: 5`, `resultsSeconds: 0` (results stay until the host's page ends the match: after 25 s in a
-public server or when the host taps Lobby in a private one). A 3-round Versus match is about 8 minutes.
+**Rounds and timing.** `createMatch` with `rounds: 'rounds'`, `introSeconds: 3` (the round's headline over the room, from round 2; the
+host skips it in round 1, which starts as the platform's 3-2-1 ends), the clock in the round data, 120 s (Versus) / 150 s
+(Together), `roundEndSeconds: 5`, `resultsSeconds: 1` (the standings stay up over the Waiting Room, with the strip, until
+the player closes them or readies). A 3-round Versus match is about 8 minutes.
 
 **Bots** fill empty seats: `createBots(match, { host, fill, think: () => null, names, skill })` seats them (fill 4 in Versus,
 3 in Together, via `setFill` when the setting changes), and the host's simulation drives their bodies with the same bot
@@ -198,8 +196,8 @@ host scales bot skill to the table's average, so a new player can win.
 with a "Closed" sign. **Away** players' persons stand dimmed; their carrier stays open. **Host change:** the new host rebuilds
 the cat simulation from the last snapshot (`resume`). A reloaded page restores its person from `room.me.presence`.
 
-**Solo while waiting.** Appointments and Cat Lady run from the lobby (`room.hideLobby()` while they run). A solo run ends
-cleanly (back to the Waiting Room) when a match starts with this player in it. A private server's host never sits in an
+**Solo while waiting.** Appointments and Cat Lady run from the lobby with the platform's strip still there. Readying ends a solo run
+cleanly (back to the Waiting Room), and so does a match starting with this player in it. A private server's host never sits in an
 appointment while friends are there: the tickets say "Friends are here" and are shut, and a run in progress ends as soon as a
 friend arrives. In a public server, a player busy in an appointment who isn't ready is left out of the match, keeps
 playing, and joins the next one; the others see "At the vet" over their person.
@@ -329,13 +327,12 @@ All screens keep clear of `ow.ui.reserved` (re-read every half second; the clock
 Stencil. Buttons are solid blocks of a palette colour with a 3 px espresso outline and a 4 px hard offset shadow (no blur, no
 gloss), ≥ 56 px tall on phones, key caps shown on desktop.
 
-1. **Title.** The Grand Café diorama in attract mode (a bot herding, cats perching and swatting, the camera drifting). "Herding
-   Cats" in Fraunces Black, cream with a thick espresso outline, its letters dropping in and swaying. A red Play button
-   (tap, click, Space or Enter). Once you've played: a strip with your herder card (level, the XP bar) and chips for stars
-   and the Daily streak.
+1. **On the way in.** The Grand Café diorama in attract mode (a bot herding, cats perching and swatting, the camera drifting). "Herding
+   Cats" in Fraunces Black, cream with a thick espresso outline, its letters dropping in and swaying. No button: it gives way to the
+   lobby as soon as the room answers (the book when there's no room).
 2. **Waiting Room (lobby).** A vet's waiting-room diorama: rows of red chairs, a rug, cats wandering and dozing. Each player
-   stands at the back with their carrier (seat colour and symbol) beside them, their name above, a bell for the host, a
-   check when ready; a "+ Invite" tag after the last one (`ow.ui.showInvite()`). Beside the scene (below it on portrait):
+   stands at the back with their carrier (seat colour and symbol) beside them, their name above, a bell for the host;
+   a "+ Invite" tag after the last one (`ow.ui.showInvite()`). Beside the scene (below it on portrait):
    the **settings board** (Versus | Together, Rounds 1 | 3 | 5; the host taps, others see them lit), your herder card (opens
    the wardrobe), then three tickets with a picture of the room: **Appointments** (stars), **Daily** (the streak flame) and
    **Cat Lady** (best), padlocked until earned. First-time players see a red "Start here". The platform's Ready strip sits at
@@ -359,7 +356,7 @@ gloss), ≥ 56 px tall on phones, key caps shown on desktop.
 8. **Results.** A panel beside the carrier (a sheet from below on portrait), told in order: "All in!" (or "Missed
    appointment") stamped on, the time ("New best"), the three sockets lighting one by one, the expert rosette, XP lines
    counting into the herder bar (a level-up with what it brings and a Wear button), new faces for the Cat-alog, a finished
-   page, the room's top times. Buttons: **Next** (Enter; Retry when missed), Retry (R), Book (Esc). A tap skips the telling.
+   page, the room's top times. Buttons: **Next** (Space; Retry when missed), Retry (R), Book (Esc). A tap skips the telling.
 9. **Pause (solo).** The scene freezes and darkens a little; a card: Resume (primary), Retry, Book.
 10. **Cat Lady.** HUD: the clock (each boxed cat sends a "+8" into it), boxed count big at top right. End: "Shift over", the
    count, best, top 5, Retry (primary), Lobby.
@@ -370,7 +367,7 @@ gloss), ≥ 56 px tall on phones, key caps shown on desktop.
 13. **Round end (5 s).** The whole room; a headline: "Priya wins" with the cats (Together: "All in!" with the time left and
     the team's stars).
 14. **Match results.** "Best in Show!" (or "Priya: Best in Show") over the standings: place, seat symbol, name, total cats;
-    confetti and a fanfare. Host of a private server: a Lobby button; a public server goes back by itself after 25 s.
+    confetti and a fanfare. It goes straight to the Waiting Room with the strip, the standings still up, with a Close button.
 15. **Watching.** The match, camera on the leader; our own "Next round" note once admitted.
 16. **Room closed.** One message, one button: "You were removed" + Play; "Connection lost" + Rejoin; "Playing in another tab"
     + Play here. Each re-joins with the same options.
@@ -522,8 +519,8 @@ diorama with stencilled carriers and an IN stamp, is its own.
 - **Appointments have a closing time** (the vet closes, a one-tap retry), on top of the three stars.
 - **Cat Lady's shift is a clock every boxed cat extends**, so it's endless for as long as you keep up.
 - **Personality symbols show when they matter** (acting, near you, always for the Boss), not over every cat all the time.
-- **First-time players alone skip the lobby** into Appointment 1, so they're playing within 5 seconds.
-- **The game owns its countdown** (`ownCountdown: true`, 3 s): one 3-2-1 over the Waiting Room, then the round's headline.
+- **First-time players start in the lobby too**: one red "Start here" on the Appointments ticket, one Ready strip.
+- **One countdown, the platform's**: its 3-2-1 over the Waiting Room, then the round, with a tick from the game on each number.
 - **Carrier shells are solo only.** You earn and wear shells for your own carrier in solo play; in Versus and Together the
   seat colours and symbols stay the identity. Hats show everywhere.
 - **Three different stars** (all in, par, a challenge per room) instead of three time thresholds, plus an expert rosette.

@@ -23,15 +23,16 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
  */
 export function createNet(room, hooks = {}) {
   const n = {
-    room, match: null, bots: null, session: null, sessionKey: null, lastRaw: null, presT: 0, screen: 'title', rank: 0, looks: [0, 0, 0],
-    hidden: false, phaseAt: 0, ended: new Set(), before: null, admitted: new Set(),
+    room, match: null, bots: null, session: null, sessionKey: null, lastRaw: null, presT: 0, screen: 'lobby', rank: 0, looks: [0, 0, 0],
+    ended: new Set(), before: null, admitted: new Set(),
   };
 
   n.match = createMatch(room, {
     rounds: 'rounds',
     introSeconds: 3,
     roundEndSeconds: 5,
-    resultsSeconds: 0,
+    // The standings stay up over the lobby, with the platform's strip, until the player closes them or readies.
+    resultsSeconds: 1,
     admit: 'next',
     startRound(m) {
       const present = m.seats.filter((s) => !s.left);
@@ -66,7 +67,8 @@ export function createNet(room, hooks = {}) {
   room.on('settings', (vals) => { try { n.bots.setFill(fillFor(vals?.game)); } catch { /* ignore */ } });
 
   n.match.on('phase', (phase, prev) => {
-    n.phaseAt = performance.now();
+    // Play begins as the platform's countdown ends: the round's headline and its wait are for the rounds after the first.
+    if (phase === 'intro' && n.match.round === 1 && n.match.isHost) n.match.skip();
     // latecomers who aren't busy with an appointment join at the next round
     if (phase === 'roundEnd' && n.match.isHost) {
       try {
@@ -81,18 +83,7 @@ export function createNet(room, hooks = {}) {
     if (room.isHost && room.kind !== 'public') { try { room.setOpen(true); } catch { /* ignore */ } }
     hooks.starting?.();
   });
-  room.on('match', () => { if (n.hidden) applyHide(); });
   room.on('close', (reason) => hooks.close?.(reason));
-
-  function applyHide() {
-    try { room.hideLobby?.(n.hidden); } catch { /* ignore */ }
-  }
-  /** Hide the platform's Ready strip (title, solo runs, the book) or bring it back (the waiting room). */
-  n.hideLobby = (on) => {
-    if (n.hidden === on) return;
-    n.hidden = on;
-    applyHide();
-  };
 
   function botIds(data) {
     return data.seats.filter((id) => n.match.seats.find((s) => s.id === id)?.bot ?? id.startsWith('bot:'));
@@ -178,11 +169,6 @@ export function createNet(room, hooks = {}) {
       }
       easeOffsets(s, dt);
     }
-    // the host ends the match's results: a public server after a while, a private one when its host says
-    if (m.isHost && m.phase === 'results' && room.kind === 'public' && performance.now() - n.phaseAt > 25000) {
-      try { m.endMatch(); } catch { /* ignore */ }
-      n.phaseAt = performance.now();
-    }
     n.presT -= dt;
     if (n.presT <= 0) {
       n.presT = 0.05;
@@ -224,7 +210,6 @@ export function createNet(room, hooks = {}) {
     if (ph !== 'starting' && ph !== 'playing') return false;
     try { return room.isParticipant ? room.isParticipant(room.me.id) : !room.spectating; } catch { return !room.spectating; }
   };
-  n.endMatch = () => { try { n.match.endMatch(); } catch { /* ignore */ } };
   return n;
 }
 

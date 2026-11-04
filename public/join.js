@@ -5,8 +5,6 @@
     maxPlayers: 6,
     minPlayers: 1,
     lobby: 'bar',
-    ownCountdown: true,
-    countdown: 3,
     settings: [
       { id: 'game', label: 'Game', options: [{ value: 'versus', label: 'Versus' }, { value: 'together', label: 'Together' }], default: 'versus' },
       { id: 'rounds', label: 'Rounds', options: [1, 3, 5], default: 3 },

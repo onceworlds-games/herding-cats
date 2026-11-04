@@ -59,9 +59,9 @@
     },
     {
       "keys": [
-        "Enter"
+        "Space"
       ],
-      "action": "The main button on every screen"
+      "action": "The main button on a menu"
     },
     {
       "keys": [
